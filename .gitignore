@@ -18,3 +18,6 @@ Thumbs.db
 # 课程资料、个人信息（不属于本项目，不公开）
 private/
 *.pdf
+
+# Next.js 自动生成，随 dev/build 变化
+next-env.d.ts
