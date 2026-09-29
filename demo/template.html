@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>场地分析 Agent 演示</title>
+<meta name="description" content="输入北京地址，自动检索周边设施，由大模型撰写场地分析简报，并由代码逐个校验简报中的数字。">
+<style>
+  :root {
+    --bg: #fafaf8; --surface: #ffffff; --text: #1c1c1a; --muted: #6b6b66; --line: #e4e4de;
+    --accent: #1f5fbf; --ok: #1a7f4b; --ok-bg: #e8f5ee; --bad: #b3261e; --bad-bg: #fdecea;
+    --code-bg: #f1f1ec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141413; --surface: #1d1d1b; --text: #ecece8; --muted: #9a9a92; --line: #33332f;
+      --accent: #7aa7ff; --ok: #5fd08f; --ok-bg: #16281e; --bad: #ff8a80; --bad-bg: #3a1a18;
+      --code-bg: #262624;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); line-height: 1.7;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 26px; margin: 0 0 4px; }
+  h2 { font-size: 19px; margin: 40px 0 12px; }
+  h3 { font-size: 15px; margin: 18px 0 4px; }
+  p { margin: 8px 0; }
+  .sub { color: var(--muted); margin: 0; }
+  .notice { margin-top: 16px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--surface); font-size: 14px; color: var(--muted); }
+  .links { margin-top: 12px; display: flex; gap: 16px; flex-wrap: wrap; font-size: 14px; }
+  .links a { color: var(--accent); }
+  .links .soon { color: var(--muted); }
+  .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 24px; }
+  .tabs button { font: inherit; cursor: pointer; padding: 8px 14px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--surface); color: var(--text); text-align: left; }
+  .tabs button small { display: block; color: var(--muted); font-size: 12px; }
+  .tabs button[aria-selected="true"] { border-color: var(--accent); outline: 1px solid var(--accent); }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-top: 16px; }
+  .center-line { font-size: 14px; color: var(--muted); margin: 0 0 10px; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 520px; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .foot { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .badge { display: inline-block; font-size: 13px; padding: 2px 10px; border-radius: 999px; font-weight: 600; }
+  .badge.ok { background: var(--ok-bg); color: var(--ok); }
+  .badge.bad { background: var(--bad-bg); color: var(--bad); }
+  .report p { font-size: 14.5px; }
+  .report h3 { padding-top: 6px; }
+  .steps { list-style: none; margin: 0; padding: 0; }
+  .steps li { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; position: relative; }
+  .steps li + li::before { content: ""; position: absolute; left: 13px; top: -8px; height: 16px; border-left: 2px solid var(--line); }
+  .steps .n { flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--bg);
+    display: grid; place-items: center; font-size: 13px; font-weight: 700; }
+  .actor { font-size: 12px; padding: 1px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--code-bg); color: var(--muted); margin-left: 6px; }
+  .steps .desc { color: var(--muted); font-size: 14px; display: block; }
+  blockquote { margin: 10px 0; padding: 8px 14px; border-left: 3px solid var(--line); background: var(--code-bg); font-size: 14px; }
+  textarea { width: 100%; min-height: 200px; font: inherit; font-size: 14px; padding: 10px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--surface); color: var(--text); resize: vertical; }
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+  .btns button { font: inherit; font-size: 14px; cursor: pointer; padding: 6px 12px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--surface); color: var(--text); }
+  .preview { white-space: pre-wrap; font-size: 14px; padding: 10px; border: 1px dashed var(--line); border-radius: 8px; margin-top: 10px; }
+  mark { background: var(--bad-bg); color: var(--bad); font-weight: 700; padding: 0 2px; border-radius: 3px; }
+  ul.plain { padding-left: 20px; } ul.plain li { margin: 4px 0; font-size: 14.5px; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+  button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>场地分析 Agent · 演示</h1>
+  <p class="sub">输入北京的一个地址，自动检索周边 1 km 设施，由大模型撰写学术风格的场地简报，并由代码逐个校验简报中的数字。</p>
+  <div class="notice">本页展示的是<strong>预先生成的真实结果</strong>，不是实时查询：数据来自高德开放平台，简报由 DeepSeek 生成，数字校验由本项目代码完成。可自由输入地址的在线版见下方链接。</div>
+  <div class="links">
+    __LINKS__
+  </div>
+
+  <div class="tabs" role="tablist" id="tabs" aria-label="选择案例"></div>
+
+  <section class="card" aria-live="polite">
+    <p class="center-line" id="centerLine"></p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>类别</th><th>数量</th><th>最近设施</th><th>距离</th></tr></thead>
+        <tbody id="statsBody"></tbody>
+      </table>
+    </div>
+    <p class="foot">数量为高德 POI 点位数，不等于用地性质；地铁按出入口计数；“≥”表示高德返回总数已封顶，实际更多。</p>
+  </section>
+
+  <section class="card report">
+    <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center">
+      <strong>场地分析简报</strong>
+      <span id="verifyBadge"></span>
+    </div>
+    <div id="reportText"></div>
+    <p class="foot" id="reportFoot"></p>
+  </section>
+
+  <h2>它是怎么工作的</h2>
+  <div class="card">
+    <ol class="steps">
+      <li><span class="n">1</span><div><strong>输入地址</strong><span class="actor">用户</span><span class="desc">仅限北京；不存在或不在北京的地址会被明确拒绝。</span></div></li>
+      <li><span class="n">2</span><div><strong>地址转坐标</strong><span class="actor">高德</span><span class="desc">地理编码接口，并检查结果确实在北京市内。</span></div></li>
+      <li><span class="n">3</span><div><strong>检索周边 1 km 的 7 类设施</strong><span class="actor">高德</span><span class="desc">地铁出入口、公交、教育、医疗、商业、公园绿地、工业；分类编码已用真实接口逐个核实。</span></div></li>
+      <li><span class="n">4</span><div><strong>统计</strong><span class="actor">代码</span><span class="desc">计数、按距离排序、取最近设施。数字全部由代码计算，不交给大模型，因为大模型数数不可靠。</span></div></li>
+      <li><span class="n">5</span><div><strong>撰写简报</strong><span class="actor">大模型</span><span class="desc">DeepSeek 只负责把统计数据写成书面语，并被要求：不得计算、估算数字，设施名称必须来自数据。</span></div></li>
+      <li><span class="n">6</span><div><strong>数字校验</strong><span class="actor">代码</span><span class="desc">提取简报中所有数字，与统计表逐一对照。不在统计表里的数字判为违规：带着违规清单让模型重写一次；仍不通过则在页面上标红警告，不会悄悄放行。</span></div></li>
+      <li><span class="n">7</span><div><strong>展示</strong><span class="actor">页面</span><span class="desc">统计表先出，简报随后出现，并标明校验是否通过。</span></div></li>
+    </ol>
+    <p class="foot">设计原则：模型负责写作，事实由代码裁决。</p>
+  </div>
+
+  <h2>校验拦截</h2>
+  <div class="card">
+    <h3>一次真实发生的拦截（开发记录）</h3>
+    <p>在收紧提示词的过程中，我加了一条规则“每类最多列举 3 处设施”。随后首钢园的简报第一段出现了：</p>
+    <blockquote>……以下各类别均按数据所载距离由近及远陈述，每个类别最多列举距离最近的 <mark>3</mark> 处设施。</blockquote>
+    <p>模型把提示词里的规则原样抄进了简报。“3”不在统计数据里，校验器将其判为违规，页面标红为“未通过校验”。这是<strong>提示词的缺陷</strong>而非模型编造：我把规则改成不含具体数字的说法后，连续多次生成均一次通过。</p>
+
+    <h3>自己试一试</h3>
+    <p>下面是当前所选案例的简报。可以直接改文字，或点按钮注入一个编造的数字。校验规则在你的浏览器里实时运行，与项目中的 <code>lib/verify.ts</code> 一致；「」内的设施名称不参与数字检查。</p>
+    <p><strong>注意校验的边界：</strong>它检查的是“这个数字是否出现在统计表里”，而不是“这个数字描述的是哪一项”。例如把“32”手动改成“33”，而 33 恰好是统计表里另一处设施的距离，就不会被发现。所以我另外用脚本核对了简报中每个「设施名称」与其距离是否配对，结果见下方“数据局限”。</p>
+    <textarea id="editor" aria-label="可编辑的简报文字"></textarea>
+    <div class="btns">
+      <button type="button" id="btnFake">注入一个编造的数量</button>
+      <button type="button" id="btnCalc">模拟模型自行算出总和与百分比</button>
+      <button type="button" id="btnReset">还原原文</button>
+    </div>
+    <div><span id="liveBadge"></span> <span id="liveDetail" class="foot"></span></div>
+    <div class="preview" id="preview"></div>
+  </div>
+
+  <h2>数据局限</h2>
+  <ul class="plain">
+    <li>数据为地图 POI 点位，<strong>不等于用地性质</strong>；工业类结果为 0 是正常现象。</li>
+    <li>地铁按<strong>出入口</strong>计数，不是车站数。</li>
+    <li>高德返回的总数在约 600 处封顶（如国贸的商业类），页面标注为“≥”。</li>
+    <li>分类存在噪音：例如“教育”里会出现培训机构、“工业”里会出现服装定制店；简报会提示但不做过滤。</li>
+    <li>校验器只检查“数字是否出现在统计表里”，不检查它描述的是哪一项。统计表里已有的数字（例如另一处设施的距离、与“1 km”撞值的 1）被误用时无法发现。缓解措施：另写脚本核对简报中每个「设施名称」是否存在于数据、其后的距离是否与该设施配对，多轮测试中名称不存在 0 处、距离错配 0 处；后续可把“名称—距离”“类别—数量”的配对检查做进校验器。</li>
+    <li>仅覆盖北京；本页为预先生成的结果，更新算法后需重新导出。</li>
+  </ul>
+
+  <h2>关于这个项目</h2>
+  <ul class="plain">
+    <li>技术栈：Next.js、TypeScript、Tailwind CSS、DeepSeek API、高德 Web 服务 API。</li>
+    <li>开发方式：借助 AI 编程 Agent 完成，由我提出需求、审阅设计并逐条验收；每个阶段的派工单与验收记录保存在仓库的 <code>docs/tasks/</code>。</li>
+    <li>数据来源：高德开放平台。本页仅作技术演示。</li>
+  </ul>
+</main>
+
+<script>
+const DATA = /*__DATA__*/null;
+
+// ===== 校验逻辑：与 lib/verify.ts 行为一致 =====
+function extractNumbers(text) {
+  const s = text.replace(/「[^」]*」/g, "").replace(/(\d),(?=\d{3}(?!\d))/g, "$1");
+  return s.match(/\d+(?:\.\d+)?/g) || [];
+}
+function allowedNumbers(stats) {
+  const a = new Set([stats.radius, stats.radius / 1000, stats.center.lng, stats.center.lat]);
+  for (const c of stats.categories) {
+    a.add(c.count);
+    if (c.nearest) a.add(c.nearest.distanceM);
+    for (const it of c.items) a.add(it.distanceM);
+  }
+  return a;
+}
+function verifyReport(text, stats) {
+  if (!text.trim()) return { ok: false, violations: ["简报内容为空"] };
+  const allowed = allowedNumbers(stats);
+  const violations = [...new Set(extractNumbers(text).filter((n) => !allowed.has(Number(n))))];
+  return { ok: violations.length === 0, violations };
+}
+
+// ===== 页面 =====
+const $ = (id) => document.getElementById(id);
+const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+let current = 0;
+
+function fmtDate(iso) {
+  return new Date(iso).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false });
+}
+
+function renderTabs() {
+  $("tabs").innerHTML = DATA.map((c, i) =>
+    `<button role="tab" type="button" data-i="${i}" aria-selected="${i === current}">${esc(c.title)}<small>${esc(c.tag)}</small></button>`
+  ).join("");
+  $("tabs").querySelectorAll("button").forEach((b) =>
+    b.addEventListener("click", () => { current = Number(b.dataset.i); renderTabs(); renderCase(); }));
+}
+
+function renderCase() {
+  const { stats, report } = DATA[current];
+  $("centerLine").textContent = `定位：${stats.center.address}（${stats.center.lng}, ${stats.center.lat}），半径 ${stats.radius} m`;
+  $("statsBody").innerHTML = stats.categories.map((c) =>
+    `<tr><td>${esc(c.label)}</td><td class="num">${c.capped ? "≥" + c.count : c.count}</td>` +
+    `<td>${c.nearest ? esc(c.nearest.name) : "—"}</td><td class="num">${c.nearest ? c.nearest.distanceM + " m" : "—"}</td></tr>`
+  ).join("");
+
+  $("verifyBadge").innerHTML = report.verified
+    ? '<span class="badge ok">✓ 数字校验通过</span>'
+    : `<span class="badge bad">✗ 校验未通过：${esc(report.violations.join("、"))}</span>`;
+  $("reportText").innerHTML = report.text.split("\n").map((l) =>
+    l.startsWith("## ") ? `<h3>${esc(l.slice(3))}</h3>` : l.trim() ? `<p>${esc(l)}</p>` : ""
+  ).join("");
+  $("reportFoot").textContent = `由 ${report.model} 生成，共生成 ${report.attempts} 次；统计生成于 ${fmtDate(stats.generatedAt)}。预先生成，非实时查询。`;
+
+  $("editor").value = report.text;
+  liveCheck();
+}
+
+// 逐段扫描文本：「」内原样输出，其余数字若不在允许集合中则标红
+function highlight(text, allowed) {
+  return text.replace(/「[^」]*」|\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?/g, "\u0000$&\u0000")
+    .split("\u0000").map((seg, i) => {
+      if (i % 2 === 0) return esc(seg);
+      if (seg.startsWith("「")) return esc(seg);
+      return allowed.has(Number(seg.replace(/,/g, ""))) ? esc(seg) : `<mark>${esc(seg)}</mark>`;
+    }).join("");
+}
+
+function liveCheck() {
+  const { stats } = DATA[current];
+  const text = $("editor").value;
+  const r = verifyReport(text, stats);
+  $("liveBadge").innerHTML = r.ok
+    ? '<span class="badge ok">✓ 通过</span>'
+    : '<span class="badge bad">✗ 未通过</span>';
+  $("liveDetail").textContent = r.ok ? "所有数字都能在统计表中找到。" : `统计表中找不到的数字：${r.violations.join("、")}`;
+  $("preview").innerHTML = highlight(text, allowedNumbers(stats));
+}
+
+// 找一个不在允许集合中的数字，保证注入的一定是“编造”的
+function unusedNumber(allowed, start) {
+  let n = start;
+  while (allowed.has(n)) n++;
+  return n;
+}
+
+$("editor").addEventListener("input", liveCheck);
+$("btnReset").addEventListener("click", () => { $("editor").value = DATA[current].report.text; liveCheck(); });
+$("btnFake").addEventListener("click", () => {
+  const allowed = allowedNumbers(DATA[current].stats);
+  $("editor").value += `\n\n另外，范围内还检索到公交站 ${unusedNumber(allowed, 45)} 处。`;
+  liveCheck();
+});
+$("btnCalc").addEventListener("click", () => {
+  const { stats } = DATA[current];
+  const allowed = allowedNumbers(stats);
+  const cs = stats.categories.filter((c) => c.count > 0).slice(0, 2);
+  const total = unusedNumber(allowed, cs.reduce((s, c) => s + c.count, 0) + 1);
+  $("editor").value += `\n\n综合来看，上述两类设施合计 ${total} 处，占比 ${unusedNumber(allowed, 12)}.5%。`;
+  liveCheck();
+});
+
+renderTabs();
+renderCase();
+</script>
+</body>
+</html>
