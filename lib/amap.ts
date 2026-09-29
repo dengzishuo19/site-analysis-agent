@@ -86,7 +86,7 @@ export async function searchAround(
     location: `${center.lng},${center.lat}`,
     types,
     radius: String(radius),
-    offset: String(limit),
+    offset: "25", // 高德单页上限；多取一些再自己排序，因为高德返回顺序并不严格按距离
     page: "1",
     sortrule: "distance",
   });
@@ -94,5 +94,6 @@ export async function searchAround(
     const [lng, lat] = p.location.split(",").map(Number);
     return { name: p.name, distanceM: Number(p.distance), lng, lat };
   });
-  return { count: Number(data.count), pois };
+  pois.sort((a, b) => a.distanceM - b.distanceM);
+  return { count: Number(data.count), pois: pois.slice(0, limit) };
 }
