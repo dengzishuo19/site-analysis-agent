@@ -21,3 +21,6 @@ private/
 
 # Next.js 自动生成，随 dev/build 变化
 next-env.d.ts
+
+# 个人求职材料（含联系方式），不提交
+output/
