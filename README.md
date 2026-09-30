@@ -4,7 +4,11 @@
 
 面向建筑与城市设计专业的学生：做课程作业前，先快速获得一份带数据来源的场地概况。
 
-**▶ 在线演示（预先生成的真实结果，点开即看）：** https://dengzishuo19.github.io/site-analysis-agent/
+**▶ 在线体验版（可输入任意北京地址，实时生成）：** https://site-analysis-agent-m6lm-livid.vercel.app
+
+**▶ 静态演示（预先生成的真实结果，点开即看，网络不佳时使用）：** https://dengzishuo19.github.io/site-analysis-agent/
+
+> 在线体验版部署在 Vercel，部分网络环境下访问可能较慢或失败；此时请看静态演示。为保护接口额度，设有访问频率限制。
 
 ## 设计要点
 
