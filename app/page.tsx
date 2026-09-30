@@ -16,6 +16,7 @@ type Report = {
   text: string;
   verified: boolean;
   violations: string[];
+  coverage: { numbers: number; bound: number };
   attempts: number;
   model: string;
   generatedAt: string;
@@ -184,7 +185,7 @@ function ReportView({ report }: { report: Report }) {
       <h2 className="text-lg font-semibold">场地分析简报</h2>
       {!report.verified && (
         <div className="mt-3 rounded border border-red-400 bg-red-50 p-3 text-sm text-red-800">
-          ⚠️ 以下简报含有未通过校验的数字：{report.violations.join("、")}。这些数字在统计表中找不到对应，请勿引用。
+          ⚠️ 以下简报有内容未通过校验：{report.violations.join("；")}。这些内容与统计表不符，请勿引用。
         </div>
       )}
       <div className="mt-3 space-y-3 text-sm leading-7">
@@ -199,7 +200,8 @@ function ReportView({ report }: { report: Report }) {
         )}
       </div>
       <p className="mt-3 text-xs text-gray-500">
-        由 {report.model} 生成，数字校验：{report.verified ? "通过" : "未通过"}（生成 {report.attempts} 次）。
+        由 {report.model} 生成，校验：{report.verified ? "通过" : "未通过"}（生成 {report.attempts} 次；
+        简报中 {report.coverage.numbers} 个数字里有 {report.coverage.bound} 个已与统计表逐项配对核对，其余仅核对是否出现在统计表中）。
         简报仅基于上方统计表，请以统计表为准。
       </p>
     </section>

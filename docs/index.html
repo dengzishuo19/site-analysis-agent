@@ -68,6 +68,8 @@
   ul.plain { padding-left: 20px; } ul.plain li { margin: 4px 0; font-size: 14.5px; }
   code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
   button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .verdicts { margin: 10px 0; font-size: 14px; }
+  .verdicts div { margin: 4px 0; }
 </style>
 </head>
 <body>
@@ -110,7 +112,7 @@
       <li><span class="n">3</span><div><strong>检索周边 1 km 的 7 类设施</strong><span class="actor">高德</span><span class="desc">地铁出入口、公交、教育、医疗、商业、公园绿地、工业；分类编码已用真实接口逐个核实。</span></div></li>
       <li><span class="n">4</span><div><strong>统计</strong><span class="actor">代码</span><span class="desc">计数、按距离排序、取最近设施。数字全部由代码计算，不交给大模型，因为大模型数数不可靠。</span></div></li>
       <li><span class="n">5</span><div><strong>撰写简报</strong><span class="actor">大模型</span><span class="desc">DeepSeek 只负责把统计数据写成书面语，并被要求：不得计算、估算数字，设施名称必须来自数据。</span></div></li>
-      <li><span class="n">6</span><div><strong>数字校验</strong><span class="actor">代码</span><span class="desc">提取简报中所有数字，与统计表逐一对照。不在统计表里的数字判为违规：带着违规清单让模型重写一次；仍不通过则在页面上标红警告，不会悄悄放行。</span></div></li>
+      <li><span class="n">6</span><div><strong>断言校验</strong><span class="actor">代码</span><span class="desc">逐条核对简报里的断言：「设施名」是否存在于数据、其后的距离是否属于这个设施、“某类别 N 处”的 N 是否等于该类别的数量，其余数字至少要出现在统计表里。有问题就带着具体的纠错信息让模型重写一次；仍不通过则在页面上标红警告，不会悄悄放行。</span></div></li>
       <li><span class="n">7</span><div><strong>展示</strong><span class="actor">页面</span><span class="desc">统计表先出，简报随后出现，并标明校验是否通过。</span></div></li>
     </ol>
     <p class="foot">设计原则：模型负责写作，事实由代码裁决。</p>
@@ -118,21 +120,48 @@
 
   <h2>校验拦截</h2>
   <div class="card">
-    <h3>一次真实发生的拦截（开发记录）</h3>
-    <p>在收紧提示词的过程中，我加了一条规则“每类最多列举 3 处设施”。随后首钢园的简报第一段出现了：</p>
-    <blockquote>……以下各类别均按数据所载距离由近及远陈述，每个类别最多列举距离最近的 <mark>3</mark> 处设施。</blockquote>
-    <p>模型把提示词里的规则原样抄进了简报。“3”不在统计数据里，校验器将其判为违规，页面标红为“未通过校验”。这是<strong>提示词的缺陷</strong>而非模型编造：我把规则改成不含具体数字的说法后，连续多次生成均一次通过。</p>
+    <h3>校验器是怎么演进的</h3>
+    <p><strong>第一版：只查数字是否出现在统计表里。</strong>能拦住凭空编造的数字，但有一个漏洞：把“地铁站出入口共 32 处”改成“共 36 处”，而 36 恰好是另一处设施的距离，就会被放行——因为它检查的是“这个数字在不在表里”，不是“这个数字说的是哪一项”。</p>
+    <p><strong>第二版（现在）：逐条核对断言。</strong>「设施名」必须存在于数据；名称后的距离必须属于这个设施；“某类别 N 处”的 N 必须等于该类别的数量。为了让校验器认得出来，提示词要求模型使用固定句式。认不出的数字仍会核对“是否在统计表里”，但只计入覆盖率、不判违规。</p>
+
+    <h3>旧版与新版对比（在一份真实的国贸简报上做六种篡改）</h3>
+    <div class="table-wrap">
+      <table style="min-width:420px">
+        <thead><tr><th>篡改方式</th><th>旧版</th><th>新版</th></tr></thead>
+        <tbody>
+          <tr><td>数量改成别处设施的距离</td><td>漏过</td><td>发现</td></tr>
+          <tr><td>数量改成另一类别的数量</td><td>漏过</td><td>发现</td></tr>
+          <tr><td>距离改成另一个设施的距离</td><td>漏过</td><td>发现</td></tr>
+          <tr><td>互换两个设施的距离</td><td>漏过</td><td>发现</td></tr>
+          <tr><td>改一个设施名</td><td>漏过</td><td>发现</td></tr>
+          <tr><td>编造一个不存在的数量</td><td>发现</td><td>发现</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="foot">下方的交互工具可以自己复现这张表：每次篡改后会同时显示旧版与新版的判定。</p>
+
+    <h3>两次真实发生的问题（开发记录）</h3>
+    <p><strong>1. 提示词里的数字被抄进简报。</strong>我加了一条规则“每类最多列举 3 处设施”，随后首钢园的简报第一段出现了“……每个类别最多列举距离最近的 <mark>3</mark> 处设施”。“3”不在统计数据里，被校验器拦下。这是<strong>提示词的缺陷</strong>而非模型编造，改成不含具体数字的说法后不再出现。</p>
+    <p><strong>2. 校验器自己的误报。</strong>升级后第一次用真实数据测量，12 份简报里有 2 份被判违规，重试后仍不通过：“「国贸地铁站(公交站)」距离 1000 m（数据中为 0 m）”。原因是模型写了“以「国贸地铁站(公交站)」为中心，分析半径 1000 m”，中心地址恰好也是数据里的一个公交站，其后的半径 1000 m 被解析器当成了它的距离。<strong>这是解析器的缺陷，模型没有错。</strong>修复解析器（名称与数字之间出现“半径”则不视为距离断言）并在提示词里要求场地地址不加「」之后，12 份新简报全部一次通过。真实数据测出来的问题，单元测试是想不到的。</p>
 
     <h3>自己试一试</h3>
-    <p>下面是当前所选案例的简报。可以直接改文字，或点按钮注入一个编造的数字。校验规则在你的浏览器里实时运行，与项目中的 <code>lib/verify.ts</code> 一致；「」内的设施名称不参与数字检查。</p>
-    <p><strong>注意校验的边界：</strong>它检查的是“这个数字是否出现在统计表里”，而不是“这个数字描述的是哪一项”。例如把“32”手动改成“33”，而 33 恰好是统计表里另一处设施的距离，就不会被发现。所以我另外用脚本核对了简报中每个「设施名称」与其距离是否配对，结果见下方“数据局限”。</p>
+    <p>下面是当前所选案例的简报，可以直接改文字，或点按钮追加一条错误的断言。校验规则在你的浏览器里实时运行，与项目中的 <code>lib/verify.ts</code> 一致；红色标出的是新版判定为不合规的位置。</p>
     <textarea id="editor" aria-label="可编辑的简报文字"></textarea>
     <div class="btns">
-      <button type="button" id="btnFake">注入一个编造的数量</button>
-      <button type="button" id="btnCalc">模拟模型自行算出总和与百分比</button>
+      <button type="button" id="btnFake">编造一个数量</button>
+      <button type="button" id="btnCount">数量写成别处设施的距离</button>
+      <button type="button" id="btnDist">距离写成另一个设施的距离</button>
+      <button type="button" id="btnSwap">互换两个设施的距离</button>
+      <button type="button" id="btnRename">改一个设施名</button>
+      <button type="button" id="btnCalc">模型自行算出总和与百分比</button>
       <button type="button" id="btnReset">还原原文</button>
     </div>
-    <div><span id="liveBadge"></span> <span id="liveDetail" class="foot"></span></div>
+    <div class="verdicts">
+      <div>旧版（只查数字是否出现在统计表里）：<span id="oldBadge"></span></div>
+      <div>新版（逐条核对断言）：<span id="liveBadge"></span></div>
+    </div>
+    <ul class="plain" id="liveIssues"></ul>
+    <p class="foot" id="liveCoverage"></p>
     <div class="preview" id="preview"></div>
   </div>
 
@@ -142,7 +171,8 @@
     <li>地铁按<strong>出入口</strong>计数，不是车站数。</li>
     <li>高德返回的总数在约 600 处封顶（如国贸的商业类），页面标注为“≥”。</li>
     <li>分类存在噪音：例如“教育”里会出现培训机构、“工业”里会出现服装定制店；简报会提示但不做过滤。</li>
-    <li>校验器只检查“数字是否出现在统计表里”，不检查它描述的是哪一项。统计表里已有的数字（例如另一处设施的距离、与“1 km”撞值的 1）被误用时无法发现。缓解措施：另写脚本核对简报中每个「设施名称」是否存在于数据、其后的距离是否与该设施配对，多轮测试中名称不存在 0 处、距离错配 0 处；后续可把“名称—距离”“类别—数量”的配对检查做进校验器。</li>
+    <li><strong>校验器只认得固定句式。</strong>在提示词要求的固定句式下，对 24 份真实简报中的 766 个数字，全部被配对核对过（覆盖率 100%）。但这是对“按模板写出来的文字”的度量，不代表任何自由文本都能被核对：认不出的数字只核对是否出现在统计表里，不判违规，如果模型换了一种校验器不认识的说法，把错数字放在里面，仍可能漏过。</li>
+    <li>名称与距离的配对不区分类别：同名设施只要距离匹配任意一条记录即通过。</li>
     <li>仅覆盖北京；本页为预先生成的结果，更新算法后需重新导出。</li>
   </ul>
 
@@ -155,12 +185,26 @@
 </main>
 
 <script>
-const DATA = [{"id":"guomao","title":"国贸","tag":"成熟城区","address":"北京市朝阳区国贸地铁站","stats":{"center":{"address":"北京市朝阳区国贸地铁站(公交站)","lng":116.459242,"lat":39.908658},"radius":1000,"categories":[{"key":"metro","label":"地铁站出入口","count":32,"capped":false,"nearest":{"name":"国贸地铁站A西北口","distanceM":36},"items":[{"name":"国贸地铁站A西北口","distanceM":36},{"name":"国贸地铁站出入口","distanceM":57},{"name":"国贸地铁站D西南口","distanceM":106},{"name":"国贸地铁站出入口","distanceM":127},{"name":"国贸地铁站B东北口","distanceM":128},{"name":"国贸地铁站出入口","distanceM":139},{"name":"国贸地铁站E1西北口","distanceM":145},{"name":"国贸地铁站出入口","distanceM":148},{"name":"国贸地铁站出入口","distanceM":167},{"name":"国贸地铁站C东南口","distanceM":176}]},{"key":"bus","label":"公交站","count":24,"capped":false,"nearest":{"name":"国贸地铁站(公交站)","distanceM":0},"items":[{"name":"国贸地铁站(公交站)","distanceM":0},{"name":"国贸(公交站)","distanceM":352},{"name":"大北窑西(公交站)","distanceM":366},{"name":"国贸中心(公交站)","distanceM":372},{"name":"大北窑北(公交站)","distanceM":391},{"name":"国贸三期(公交站)","distanceM":414},{"name":"恒惠路(公交站)","distanceM":417},{"name":"大北窑东(公交站)","distanceM":467},{"name":"通惠河北路(公交站)","distanceM":473},{"name":"大北窑南(公交站)","distanceM":479}]},{"key":"school","label":"教育（学校）","count":17,"capped":false,"nearest":{"name":"首尔科学综合大学院大学中国代表处","distanceM":272},"items":[{"name":"首尔科学综合大学院大学中国代表处","distanceM":272},{"name":"亚洲财经商学院","distanceM":330},{"name":"北京欧风小语种","distanceM":349},{"name":"清华大学附属小学商务中心区实验小学","distanceM":447},{"name":"THE ZEN DESIGN德真设计","distanceM":559},{"name":"家育苑幼儿园(建外校区)","distanceM":585},{"name":"CBD国际融商服务中心","distanceM":608},{"name":"北京市日坛中学(永安里校区)","distanceM":632},{"name":"致真教育","distanceM":640},{"name":"中关村技术经理人协会","distanceM":662}]},{"key":"hospital","label":"医疗（综合/专科医院）","count":80,"capped":false,"nearest":{"name":"领医医美·RYOYI(银泰中心in01院区)","distanceM":108},"items":[{"name":"领医医美·RYOYI(银泰中心in01院区)","distanceM":108},{"name":"北京生命汇医疗美容(银泰中心店)","distanceM":109},{"name":"北京臻瑞尚美医疗美容","distanceM":254},{"name":"五月花口腔诊所(国贸店)","distanceM":266},{"name":"北京八大处整形医疗美容门诊部","distanceM":274},{"name":"永恒口腔(国贸店)","distanceM":290},{"name":"固瑞齿科(中海店)","distanceM":343},{"name":"北京梅瑞中海口腔门诊部","distanceM":350},{"name":"威尔默口腔(国贸门诊)","distanceM":355},{"name":"韶华医疗美容","distanceM":371}]},{"key":"commerce","label":"商业（购物+餐饮）","count":600,"capped":true,"nearest":{"name":"EMPORIO ARMANI(国贸商城店)","distanceM":25},"items":[{"name":"EMPORIO ARMANI(国贸商城店)","distanceM":25},{"name":"Mulberry(北京国贸商城店)","distanceM":27},{"name":"BACHA COFFEE夿萐咖啡(北京国贸商城店)","distanceM":33},{"name":"HANLOON(国贸商城店)","distanceM":36},{"name":"Peet's Coffee皮爷咖啡(国贸店)","distanceM":49},{"name":"瑞幸咖啡(国贸站店)","distanceM":51},{"name":"TUMI(国贸商城店)","distanceM":51},{"name":"安普里奥·阿玛尼(国贸商城南区店)","distanceM":60},{"name":"HARRY WINSTON(国贸商城店)","distanceM":71},{"name":"BVLGARI宝格丽(北京国贸商城精品店)","distanceM":74}]},{"key":"park","label":"公园绿地","count":15,"capped":false,"nearest":{"name":"国贸花园","distanceM":265},"items":[{"name":"国贸花园","distanceM":265},{"name":"招商局大厦-中心花园","distanceM":381},{"name":"CBD森林公园","distanceM":460},{"name":"建外SOHO西区15号楼下沉广场","distanceM":500},{"name":"建外街道口袋公园","distanceM":631},{"name":"北京CBD公园·北京in77","distanceM":649},{"name":"庆丰公园","distanceM":709},{"name":"阳光广场","distanceM":709},{"name":"建外街道普法广场","distanceM":796},{"name":"下沉广场外卖柜","distanceM":856}]},{"key":"industry","label":"工业（工厂+产业园区）","count":10,"capped":false,"nearest":{"name":"包老板服装定制工厂","distanceM":302},"items":[{"name":"包老板服装定制工厂","distanceM":302},{"name":"可可兔自然光COCOTO(国贸店)","distanceM":304},{"name":"北京CBD核心区Z3项目(建设中)","distanceM":412},{"name":"中国(北京)自由贸易试验区国际商务服务片区","distanceM":442},{"name":"数配立方","distanceM":542},{"name":"北京CBD核心区(建设中)","distanceM":631},{"name":"MatchCC","distanceM":650},{"name":"汇加(北京)出入境服务有限公司","distanceM":677},{"name":"郎园VINTAGE","distanceM":976},{"name":"郎园Vintage9号楼","distanceM":992}]}],"generatedAt":"2026-09-29T16:23:28.852Z","source":"高德开放平台"},"report":{"text":"## 场地概况\n本次分析以北京市朝阳区国贸地铁站(公交站)为中心，分析范围为半径1000m。范围内检索到地铁站出入口32处，公交站24处，教育（学校）17处，医疗（综合/专科医院）80处，商业（购物+餐饮）不少于600处，公园绿地15处，工业（工厂+产业园区）10处。上述数据为地图POI点位，不等于用地性质；其中地铁数据为出入口数量而非车站数；分类可能存在噪音，个别点位归类不准。\n\n## 交通可达性\n范围内检索到地铁站出入口32处，最近的为「国贸地铁站A西北口」，距离36m，其余较近的包括「国贸地铁站出入口」距离57m、「国贸地铁站D西南口」距离106m、「国贸地铁站出入口」距离127m、「国贸地铁站B东北口」距离128m（依据：地铁站出入口）。需说明的是，地铁数据为出入口数量而非车站数。范围内检索到公交站24处，最近的为「国贸地铁站(公交站)」，距离0m，其余较近的包括「国贸(公交站)」距离352m、「大北窑西(公交站)」距离366m、「国贸中心(公交站)」距离372m、「大北窑北(公交站)」距离391m（依据：公交站）。\n\n## 公共服务与商业\n范围内检索到教育（学校）17处，最近的为「首尔科学综合大学院大学中国代表处」，距离272m，其余较近的包括「亚洲财经商学院」距离330m、「北京欧风小语种」距离349m、「清华大学附属小学商务中心区实验小学」距离447m、「THE ZEN DESIGN德真设计」距离559m（依据：教育（学校））。范围内检索到医疗（综合/专科医院）80处，最近的为「领医医美·RYOYI(银泰中心in01院区)」，距离108m，其余较近的包括「北京生命汇医疗美容(银泰中心店)」距离109m、「北京臻瑞尚美医疗美容」距离254m、「五月花口腔诊所(国贸店)」距离266m、「北京八大处整形医疗美容门诊部」距离274m（依据：医疗（综合/专科医院））。范围内检索到商业（购物+餐饮）不少于600处，最近的为「EMPORIO ARMANI(国贸商城店)」，距离25m，其余较近的包括「Mulberry(北京国贸商城店)」距离27m、「BACHA COFFEE夿萐咖啡(北京国贸商城店)」距离33m、「HANLOON(国贸商城店)」距离36m、「Peet's Coffee皮爷咖啡(国贸店)」距离49m（依据：商业（购物+餐饮））。\n\n## 环境与潜在影响\n范围内检索到公园绿地15处，最近的为「国贸花园」，距离265m，其余较近的包括「招商局大厦-中心花园」距离381m、「CBD森林公园」距离460m、「建外SOHO西区15号楼下沉广场」距离500m、「建外街道口袋公园」距离631m（依据：公园绿地）。范围内检索到工业（工厂+产业园区）10处，最近的为「包老板服装定制工厂」，距离302m，其余较近的包括「可可兔自然光COCOTO(国贸店)」距离304m、「北京CBD核心区Z3项目(建设中)」距离412m、「中国(北京)自由贸易试验区国际商务服务片区」距离442m、「数配立方」距离542m（依据：工业（工厂+产业园区））。\n\n## 数据局限\n本次简报所用数据为地图POI点位，不等于用地性质；地铁数据为出入口数量而非车站数；分类可能存在噪音，个别点位归类不准。范围内数量为0的类别，如实记为范围内未检索到，不作其他推断。","verified":true,"violations":[],"attempts":1,"model":"deepseek-chat","generatedAt":"2026-09-29T16:23:32.165Z"}},{"id":"shougang","title":"首钢园","tag":"工业遗存改造","address":"北京市石景山区首钢园","stats":{"center":{"address":"北京市石景山区首钢园","lng":116.155232,"lat":39.915415},"radius":1000,"categories":[{"key":"metro","label":"地铁站出入口","count":9,"capped":false,"nearest":{"name":"北辛安地铁站A口","distanceM":772},"items":[{"name":"北辛安地铁站A口","distanceM":772},{"name":"北辛安(地铁站)","distanceM":819},{"name":"金安桥地铁站K口","distanceM":852},{"name":"北辛安地铁站B1口","distanceM":853},{"name":"北辛安地铁站C口","distanceM":870},{"name":"金安桥地铁站J口","distanceM":888},{"name":"北辛安地铁站B2口","distanceM":919},{"name":"北辛安地铁站B3口","distanceM":952},{"name":"金安桥地铁站H口","distanceM":977}]},{"key":"bus","label":"公交站","count":25,"capped":false,"nearest":{"name":"六工汇(公交站)","distanceM":29},"items":[{"name":"六工汇(公交站)","distanceM":29},{"name":"首钢设备库(公交站)","distanceM":207},{"name":"冬训中心(公交站)","distanceM":275},{"name":"大跳台(群明湖大街)(公交站)","distanceM":309},{"name":"首钢滑雪大跳台北(公交站)","distanceM":358},{"name":"香格里拉酒店(公交站)","distanceM":424},{"name":"群明湖西街(公交站)","distanceM":425},{"name":"石景山书院(公交站)","distanceM":434},{"name":"三高炉南广场(公交站)","distanceM":454},{"name":"一高炉南广场(公交站)","distanceM":504}]},{"key":"school","label":"教育（学校）","count":1,"capped":false,"nearest":{"name":"首钢幼教熙山府幼儿园","distanceM":981},"items":[{"name":"首钢幼教熙山府幼儿园","distanceM":981}]},{"key":"hospital","label":"医疗（综合/专科医院）","count":1,"capped":false,"nearest":{"name":"优辰口腔","distanceM":977},"items":[{"name":"优辰口腔","distanceM":977}]},{"key":"commerce","label":"商业（购物+餐饮）","count":214,"capped":false,"nearest":{"name":"THE WOODS餐厅(石景山六工汇购物广场店)","distanceM":53},"items":[{"name":"THE WOODS餐厅(石景山六工汇购物广场店)","distanceM":53},{"name":"LINLEE·手打柠檬茶(石景山六工汇店)","distanceM":66},{"name":"星巴克(北京首钢六工汇店)","distanceM":68},{"name":"北冰洋北平制冰厂(六工汇购物广场店)","distanceM":69},{"name":"书亦烧仙草(六工汇购物广场店)","distanceM":75},{"name":"CHAGEE霸王茶姬(北京六工汇购物广场店)","distanceM":79},{"name":"snow peak(六工汇购物广场店)","distanceM":85},{"name":"江北北火锅馆·熊猫主题(首钢店)","distanceM":86},{"name":"POP MART泡泡玛特(六工汇购物广场店)","distanceM":86},{"name":"六工汇购物广场","distanceM":86}]},{"key":"park","label":"公园绿地","count":7,"capped":false,"nearest":{"name":"首钢园","distanceM":0},"items":[{"name":"首钢园","distanceM":0},{"name":"沉淀池广场","distanceM":150},{"name":"首钢园北区","distanceM":159},{"name":"高线公园","distanceM":297},{"name":"吉野家(首钢融石广场店)","distanceM":597},{"name":"首钢园- 厂东门新址广场","distanceM":873},{"name":"Glorious Park","distanceM":914}]},{"key":"industry","label":"工业（工厂+产业园区）","count":10,"capped":false,"nearest":{"name":"六工汇","distanceM":189},"items":[{"name":"六工汇","distanceM":189},{"name":"六工汇·融智创新中心","distanceM":432},{"name":"石景山区特钢厂","distanceM":477},{"name":"制氧创新中心北区","distanceM":521},{"name":"首钢园制氧创新中心","distanceM":608},{"name":"制氧创新中心南区","distanceM":653},{"name":"首钢基金具身智能生态基地","distanceM":764},{"name":"金安科幻广场","distanceM":765},{"name":"元宇·漫游-全球科幻开发者大会科技概念展-中关村科幻产业创新中心","distanceM":797},{"name":"元玺示范区","distanceM":964}]}],"generatedAt":"2026-09-29T16:23:44.109Z","source":"高德开放平台"},"report":{"text":"## 场地概况\n本次分析以北京市石景山区首钢园为中心，分析半径 1000 m。范围内检索到的地图 POI 点位涵盖地铁站出入口、公交站、教育、医疗、商业、公园绿地与工业等类别。需要说明的是，这些数据为地图 POI 点位，不等于用地性质；其中地铁数据为出入口数量而非车站数；分类可能存在噪音，个别点位归类不准。\n\n## 交通可达性\n范围内检索到地铁站出入口 9 处，最近的一处为「北辛安地铁站A口」，距离 772 m，其余较近的包括「北辛安(地铁站)」819 m、「金安桥地铁站K口」852 m、「北辛安地铁站B1口」853 m、「北辛安地铁站C口」870 m（依据：地铁站出入口）。公交站 25 处，最近的一处为「六工汇(公交站)」，距离 29 m，其余较近的包括「首钢设备库(公交站)」207 m、「冬训中心(公交站)」275 m、「大跳台(群明湖大街)(公交站)」309 m、「首钢滑雪大跳台北(公交站)」358 m（依据：公交站）。\n\n## 公共服务与商业\n教育（学校）1 处，为「首钢幼教熙山府幼儿园」，距离 981 m（依据：教育（学校））。医疗（综合/专科医院）1 处，为「优辰口腔」，距离 977 m（依据：医疗（综合/专科医院））。商业（购物+餐饮）214 处，最近的一处为「THE WOODS餐厅(石景山六工汇购物广场店)」，距离 53 m，其余较近的包括「LINLEE·手打柠檬茶(石景山六工汇店)」66 m、「星巴克(北京首钢六工汇店)」68 m、「北冰洋北平制冰厂(六工汇购物广场店)」69 m、「书亦烧仙草(六工汇购物广场店)」75 m（依据：商业（购物+餐饮））。\n\n## 环境与潜在影响\n公园绿地 7 处，最近的一处为「首钢园」，距离 0 m，其余较近的包括「沉淀池广场」150 m、「首钢园北区」159 m、「高线公园」297 m（依据：公园绿地）。工业（工厂+产业园区）10 处，最近的一处为「六工汇」，距离 189 m，其余较近的包括「六工汇·融智创新中心」432 m、「石景山区特钢厂」477 m、「制氧创新中心北区」521 m、「首钢园制氧创新中心」608 m（依据：工业（工厂+产业园区））。\n\n## 数据局限\n本简报所依据的数据为地图 POI 点位，不等于用地性质；地铁数据为出入口数量而非车站数；分类可能存在噪音，个别点位归类不准。范围内未检索到数量为 0 的类别。以上内容仅陈述数据本身，不涉及设施之间的功能关系、步行可达性、场地功能混合程度或规划意图。","verified":true,"violations":[],"attempts":1,"model":"deepseek-chat","generatedAt":"2026-09-29T16:23:46.519Z"}},{"id":"yizhuang","title":"亦庄","tag":"产业园区","address":"北京市大兴区亦庄经济技术开发区","stats":{"center":{"address":"北京市大兴区亦庄北京经济技术开发区","lng":116.506622,"lat":39.795275},"radius":1000,"categories":[{"key":"metro","label":"地铁站出入口","count":11,"capped":false,"nearest":{"name":"荣京东街地铁站A1北口","distanceM":578},"items":[{"name":"荣京东街地铁站A1北口","distanceM":578},{"name":"荣京东街地铁站A2北口","distanceM":585},{"name":"荣京东街(地铁站)","distanceM":626},{"name":"荣京东街地铁站B2南口","distanceM":675},{"name":"荣京东街地铁站B1南口","distanceM":679},{"name":"万源街地铁站B1南口","distanceM":803},{"name":"万源街地铁站B2南口","distanceM":811},{"name":"万源街地铁站D西南口","distanceM":851},{"name":"万源街(地铁站)","distanceM":857},{"name":"万源街地铁站A2北口","distanceM":913}]},{"key":"bus","label":"公交站","count":24,"capped":false,"nearest":{"name":"亦庄管委会(公交站)","distanceM":61},"items":[{"name":"亦庄管委会(公交站)","distanceM":61},{"name":"亦庄(公交站)","distanceM":144},{"name":"博大大厦(公交站)","distanceM":204},{"name":"宏达北路南口(公交站)","distanceM":405},{"name":"天宝园六里(公交站)","distanceM":462},{"name":"荣京东街西口(公交站)","distanceM":477},{"name":"博大公园(公交站)","distanceM":494},{"name":"经开创业园(公交站)","distanceM":503},{"name":"中和街(公交站)","distanceM":507},{"name":"天宝中路(公交站)","distanceM":675}]},{"key":"school","label":"教育（学校）","count":4,"capped":false,"nearest":{"name":"嘉慕传媒","distanceM":232},"items":[{"name":"嘉慕传媒","distanceM":232},{"name":"未来荣华金嵿国际幼儿园","distanceM":792},{"name":"美格幼儿园","distanceM":855},{"name":"北京微创技术学院","distanceM":998}]},{"key":"hospital","label":"医疗（综合/专科医院）","count":10,"capped":false,"nearest":{"name":"北京皓尔国际口腔医院(朝林店)","distanceM":242},"items":[{"name":"北京皓尔国际口腔医院(朝林店)","distanceM":242},{"name":"北京倪氏亦城嘉德口腔门诊部","distanceM":669},{"name":"吴辰齿科","distanceM":672},{"name":"雅康美口腔(上海沙龙新天地天宝商业中心店)","distanceM":779},{"name":"牙典口腔(上海沙龙新天地天宝商业中心店)","distanceM":834},{"name":"固特齿科","distanceM":926},{"name":"亦城口腔·种植·矫正·儿牙(亦庄院)","distanceM":930},{"name":"荣华医院","distanceM":949},{"name":"佳美口腔(亦庄店)","distanceM":950},{"name":"博泽生命科学医疗美容中心","distanceM":960}]},{"key":"commerce","label":"商业（购物+餐饮）","count":597,"capped":false,"nearest":{"name":"果栗园(亦庄创意广场店)","distanceM":9},"items":[{"name":"果栗园(亦庄创意广场店)","distanceM":9},{"name":"京东自营旗舰店","distanceM":9},{"name":"鲜十方·freshcube智能鲜饮机器人(经开区管委会站)","distanceM":66},{"name":"BOOM FRESH大牌美妆集合店(北京丰大店)","distanceM":185},{"name":"悦来中餐厅","distanceM":186},{"name":"丰大国际酒店·宴会厅","distanceM":187},{"name":"酒仙网国际名酒城(丰大国际店)","distanceM":188},{"name":"丰大国际·悦享露天音乐餐厅(亦庄荣华中路店)","distanceM":188},{"name":"丰大国际大酒店-自助餐厅","distanceM":189},{"name":"聚缘咖啡厅","distanceM":199}]},{"key":"park","label":"公园绿地","count":2,"capped":false,"nearest":{"name":"博大公园","distanceM":309},"items":[{"name":"博大公园","distanceM":309},{"name":"东方物语·城市更新雕塑展-国锐广场","distanceM":537}]},{"key":"industry","label":"工业（工厂+产业园区）","count":27,"capped":false,"nearest":{"name":"北京经济技术开发区","distanceM":0},"items":[{"name":"北京经济技术开发区","distanceM":0},{"name":"亦庄核心区","distanceM":44},{"name":"中国智库创新科学园","distanceM":163},{"name":"智能网联·创新园","distanceM":326},{"name":"经开创业园","distanceM":455},{"name":"中航科创北京工业园","distanceM":519},{"name":"国锐广场创新创业基地","distanceM":532},{"name":"中国(北京)高新视听产业园B座","distanceM":551},{"name":"中国国际电子商务中心","distanceM":604},{"name":"中国(北京)高新视听产业园","distanceM":621}]}],"generatedAt":"2026-09-29T16:23:59.110Z","source":"高德开放平台"},"report":{"text":"## 场地概况\n场地所在地址为北京市大兴区亦庄北京经济技术开发区，分析范围以场地为中心、半径 1000 m。范围内检索到的设施点位涵盖地铁站出入口、公交站、教育、医疗、商业、公园绿地与工业等类别。其中工业类点位包含「北京经济技术开发区」，距离 0 m，以及「亦庄核心区」，距离 44 m。商业类点位数量为 597，最近的为「果栗园(亦庄创意广场店)」与「京东自营旗舰店」，距离均为 9 m。上述数量均为地图 POI 点位统计结果，不代表用地性质。\n\n## 交通可达性\n范围内检索到地铁站出入口 11 处，最近者为「荣京东街地铁站A1北口」，距离 578 m，其余较近者包括「荣京东街地铁站A2北口」，距离 585 m，「荣京东街(地铁站)」，距离 626 m，「荣京东街地铁站B2南口」，距离 675 m，「荣京东街地铁站B1南口」，距离 679 m。需要说明的是，地铁数据为出入口数量而非车站数。范围内检索到公交站 24 处，最近者为「亦庄管委会(公交站)」，距离 61 m，其次为「亦庄(公交站)」，距离 144 m，「博大大厦(公交站)」，距离 204 m，「宏达北路南口(公交站)」，距离 405 m，「天宝园六里(公交站)」，距离 462 m（依据：地铁站出入口、公交站）。\n\n## 公共服务与商业\n范围内检索到教育类点位 4 处，最近者为「嘉慕传媒」，距离 232 m，其余包括「未来荣华金嵿国际幼儿园」，距离 792 m，「美格幼儿园」，距离 855 m，「北京微创技术学院」，距离 998 m。医疗类点位 10 处，最近者为「北京皓尔国际口腔医院(朝林店)」，距离 242 m，其余较近者包括「北京倪氏亦城嘉德口腔门诊部」，距离 669 m，「吴辰齿科」，距离 672 m，「雅康美口腔(上海沙龙新天地天宝商业中心店)」，距离 779 m，「牙典口腔(上海沙龙新天地天宝商业中心店)」，距离 834 m。商业类点位 597 处，最近者为「果栗园(亦庄创意广场店)」与「京东自营旗舰店」，距离均为 9 m，其余较近者包括「鲜十方·freshcube智能鲜饮机器人(经开区管委会站)」，距离 66 m，「BOOM FRESH大牌美妆集合店(北京丰大店)」，距离 185 m，「悦来中餐厅」，距离 186 m，「丰大国际酒店·宴会厅」，距离 187 m（依据：教育（学校）、医疗（综合/专科医院）、商业（购物+餐饮））。\n\n## 环境与潜在影响\n范围内检索到公园绿地类点位 2 处，最近者为「博大公园」，距离 309 m，另一处为「东方物语·城市更新雕塑展-国锐广场」，距离 537 m。工业类点位 27 处，最近者为「北京经济技术开发区」，距离 0 m，其次为「亦庄核心区」，距离 44 m，「中国智库创新科学园」，距离 163 m，「智能网联·创新园」，距离 326 m，「经开创业园」，距离 455 m（依据：公园绿地、工业（工厂+产业园区））。\n\n## 数据局限\n本简报数据为地图 POI 点位，不等于用地性质；地铁数据为出入口数量而非车站数；分类可能存在噪音，个别点位归类不准。范围内未检索到的类别，如实反映检索结果，不作其他推断。","verified":true,"violations":[],"attempts":1,"model":"deepseek-chat","generatedAt":"2026-09-29T16:24:02.164Z"}},{"id":"badaling","title":"八达岭","tag":"偏远景区","address":"北京市延庆区八达岭长城","stats":{"center":{"address":"北京市延庆区八达岭长城","lng":116.016802,"lat":40.356188},"radius":1000,"categories":[{"key":"metro","label":"地铁站出入口","count":0,"capped":false,"nearest":null,"items":[]},{"key":"bus","label":"公交站","count":6,"capped":false,"nearest":{"name":"八达岭长城(公交站)","distanceM":372},"items":[{"name":"八达岭长城(公交站)","distanceM":372},{"name":"八达岭缆车索道北线路(公交站)","distanceM":617},{"name":"八达岭长城(公交站)","distanceM":689},{"name":"长城瓮城主入口途经站(公交站)","distanceM":845},{"name":"八达岭夜长城(公交站)","distanceM":875},{"name":"八达岭森林公园(公交站)","distanceM":999}]},{"key":"school","label":"教育（学校）","count":0,"capped":false,"nearest":null,"items":[]},{"key":"hospital","label":"医疗（综合/专科医院）","count":0,"capped":false,"nearest":null,"items":[]},{"key":"commerce","label":"商业（购物+餐饮）","count":59,"capped":false,"nearest":{"name":"长城纪念品","distanceM":189},"items":[{"name":"长城纪念品","distanceM":189},{"name":"虎头军煎饼(八达岭熊乐园店)","distanceM":218},{"name":"正新鸡排(熊乐园店)","distanceM":223},{"name":"蜜雪冰城(八达岭长城熊乐园店)","distanceM":253},{"name":"醉面(八达岭二店)","distanceM":255},{"name":"长城水果店","distanceM":256},{"name":"城边小店","distanceM":269},{"name":"德克士(八达岭二店)","distanceM":277},{"name":"中国兰州拉面(八达岭长城店)","distanceM":279},{"name":"长城礼物(八达岭店)","distanceM":298}]},{"key":"park","label":"公园绿地","count":5,"capped":false,"nearest":{"name":"八达岭熊乐园","distanceM":257},"items":[{"name":"八达岭熊乐园","distanceM":257},{"name":"八达岭长城-望京台","distanceM":267},{"name":"锁钥文化广场","distanceM":506},{"name":"八达岭北线索道登城口","distanceM":622},{"name":"八达岭北线索道下行站","distanceM":775}]},{"key":"industry","label":"工业（工厂+产业园区）","count":0,"capped":false,"nearest":null,"items":[]}],"generatedAt":"2026-09-29T16:24:14.177Z","source":"高德开放平台"},"report":{"text":"## 场地概况\n本次场地分析以北京市延庆区八达岭长城为中心，分析半径 1000 m。范围内检索到的设施点位集中于商业、公交与公园绿地等类别，教育、医疗、工业以及地铁站出入口类别均未检索到点位。需要说明的是，以下数据为地图 POI 点位，不等于用地性质；地铁数据为出入口数量而非车站数；分类可能存在噪音，个别点位归类不准。\n\n## 交通可达性\n范围内未检索到地铁站出入口（依据：地铁站出入口）。公交站共 6 处，最近的一处为「八达岭长城(公交站)」，距离 372 m；其余较近的包括「八达岭缆车索道北线路(公交站)」距离 617 m、「八达岭长城(公交站)」距离 689 m、「长城瓮城主入口途经站(公交站)」距离 845 m、「八达岭夜长城(公交站)」距离 875 m，以及「八达岭森林公园(公交站)」距离 999 m（依据：公交站）。\n\n## 公共服务与商业\n范围内未检索到教育（学校）点位（依据：教育（学校）），未检索到医疗（综合/专科医院）点位（依据：医疗（综合/专科医院））。商业（购物+餐饮）共 59 处，最近的一处为「长城纪念品」，距离 189 m；其余较近的包括「虎头军煎饼(八达岭熊乐园店)」距离 218 m、「正新鸡排(熊乐园店)」距离 223 m、「蜜雪冰城(八达岭长城熊乐园店)」距离 253 m、「醉面(八达岭二店)」距离 255 m、「长城水果店」距离 256 m、「城边小店」距离 269 m、「德克士(八达岭二店)」距离 277 m、「中国兰州拉面(八达岭长城店)」距离 279 m，以及「长城礼物(八达岭店)」距离 298 m（依据：商业（购物+餐饮））。\n\n## 环境与潜在影响\n公园绿地共 5 处，最近的一处为「八达岭熊乐园」，距离 257 m；其余较近的包括「八达岭长城-望京台」距离 267 m、「锁钥文化广场」距离 506 m、「八达岭北线索道登城口」距离 622 m，以及「八达岭北线索道下行站」距离 775 m（依据：公园绿地）。工业（工厂+产业园区）范围内未检索到点位（依据：工业（工厂+产业园区））。\n\n## 数据局限\n本简报所依据的数据为地图 POI 点位，仅反映点位分布，不等于用地性质。地铁相关数据为出入口数量而非车站数。分类可能存在噪音，个别点位归类不准。上述结论仅陈述数据本身，不涉及设施之间的功能关系、步行可达性、场地功能混合程度或规划意图。","verified":true,"violations":[],"attempts":1,"model":"deepseek-chat","generatedAt":"2026-09-29T16:24:16.750Z"}}];
+const DATA = [{"id":"guomao","title":"国贸","tag":"成熟城区","address":"北京市朝阳区国贸地铁站","stats":{"center":{"address":"北京市朝阳区国贸地铁站(公交站)","lng":116.459242,"lat":39.908658},"radius":1000,"categories":[{"key":"metro","label":"地铁站出入口","count":32,"capped":false,"nearest":{"name":"国贸地铁站A西北口","distanceM":36},"items":[{"name":"国贸地铁站A西北口","distanceM":36},{"name":"国贸地铁站出入口","distanceM":57},{"name":"国贸地铁站D西南口","distanceM":106},{"name":"国贸地铁站出入口","distanceM":127},{"name":"国贸地铁站B东北口","distanceM":128},{"name":"国贸地铁站出入口","distanceM":139},{"name":"国贸地铁站E1西北口","distanceM":145},{"name":"国贸地铁站出入口","distanceM":148},{"name":"国贸地铁站出入口","distanceM":167},{"name":"国贸地铁站C东南口","distanceM":176}]},{"key":"bus","label":"公交站","count":24,"capped":false,"nearest":{"name":"国贸地铁站(公交站)","distanceM":0},"items":[{"name":"国贸地铁站(公交站)","distanceM":0},{"name":"国贸(公交站)","distanceM":352},{"name":"大北窑西(公交站)","distanceM":366},{"name":"国贸中心(公交站)","distanceM":372},{"name":"大北窑北(公交站)","distanceM":391},{"name":"国贸三期(公交站)","distanceM":414},{"name":"恒惠路(公交站)","distanceM":417},{"name":"大北窑东(公交站)","distanceM":467},{"name":"通惠河北路(公交站)","distanceM":473},{"name":"大北窑南(公交站)","distanceM":479}]},{"key":"school","label":"教育（学校）","count":17,"capped":false,"nearest":{"name":"首尔科学综合大学院大学中国代表处","distanceM":272},"items":[{"name":"首尔科学综合大学院大学中国代表处","distanceM":272},{"name":"亚洲财经商学院","distanceM":330},{"name":"北京欧风小语种","distanceM":349},{"name":"清华大学附属小学商务中心区实验小学","distanceM":447},{"name":"THE ZEN DESIGN德真设计","distanceM":559},{"name":"家育苑幼儿园(建外校区)","distanceM":585},{"name":"CBD国际融商服务中心","distanceM":608},{"name":"北京市日坛中学(永安里校区)","distanceM":632},{"name":"致真教育","distanceM":640},{"name":"中关村技术经理人协会","distanceM":662}]},{"key":"hospital","label":"医疗（综合/专科医院）","count":80,"capped":false,"nearest":{"name":"领医医美·RYOYI(银泰中心in01院区)","distanceM":108},"items":[{"name":"领医医美·RYOYI(银泰中心in01院区)","distanceM":108},{"name":"北京生命汇医疗美容(银泰中心店)","distanceM":109},{"name":"北京臻瑞尚美医疗美容","distanceM":254},{"name":"五月花口腔诊所(国贸店)","distanceM":266},{"name":"北京八大处整形医疗美容门诊部","distanceM":274},{"name":"永恒口腔(国贸店)","distanceM":290},{"name":"固瑞齿科(中海店)","distanceM":343},{"name":"北京梅瑞中海口腔门诊部","distanceM":350},{"name":"威尔默口腔(国贸门诊)","distanceM":355},{"name":"韶华医疗美容","distanceM":371}]},{"key":"commerce","label":"商业（购物+餐饮）","count":600,"capped":true,"nearest":{"name":"EMPORIO ARMANI(国贸商城店)","distanceM":25},"items":[{"name":"EMPORIO ARMANI(国贸商城店)","distanceM":25},{"name":"Mulberry(北京国贸商城店)","distanceM":27},{"name":"BACHA COFFEE夿萐咖啡(北京国贸商城店)","distanceM":33},{"name":"HANLOON(国贸商城店)","distanceM":36},{"name":"Peet's Coffee皮爷咖啡(国贸店)","distanceM":49},{"name":"瑞幸咖啡(国贸站店)","distanceM":51},{"name":"TUMI(国贸商城店)","distanceM":51},{"name":"安普里奥·阿玛尼(国贸商城南区店)","distanceM":60},{"name":"HARRY WINSTON(国贸商城店)","distanceM":71},{"name":"BVLGARI宝格丽(北京国贸商城精品店)","distanceM":74}]},{"key":"park","label":"公园绿地","count":15,"capped":false,"nearest":{"name":"国贸花园","distanceM":265},"items":[{"name":"国贸花园","distanceM":265},{"name":"招商局大厦-中心花园","distanceM":381},{"name":"CBD森林公园","distanceM":460},{"name":"建外SOHO西区15号楼下沉广场","distanceM":500},{"name":"建外街道口袋公园","distanceM":631},{"name":"北京CBD公园·北京in77","distanceM":649},{"name":"庆丰公园","distanceM":709},{"name":"阳光广场","distanceM":709},{"name":"建外街道普法广场","distanceM":796},{"name":"下沉广场外卖柜","distanceM":856}]},{"key":"industry","label":"工业（工厂+产业园区）","count":10,"capped":false,"nearest":{"name":"包老板服装定制工厂","distanceM":302},"items":[{"name":"包老板服装定制工厂","distanceM":302},{"name":"可可兔自然光COCOTO(国贸店)","distanceM":304},{"name":"北京CBD核心区Z3项目(建设中)","distanceM":412},{"name":"中国(北京)自由贸易试验区国际商务服务片区","distanceM":442},{"name":"数配立方","distanceM":542},{"name":"北京CBD核心区(建设中)","distanceM":631},{"name":"MatchCC","distanceM":650},{"name":"汇加(北京)出入境服务有限公司","distanceM":677},{"name":"郎园VINTAGE","distanceM":976},{"name":"郎园Vintage9号楼","distanceM":992}]}],"generatedAt":"2026-09-30T05:44:22.620Z","source":"高德开放平台","signature":"a3353a3d10bc5704ec15967d43fc57cf60a7cb36b44aa734a35611634d6e7500","expiresAt":1790748862620},"report":{"text":"## 场地概况\n\n场地地址为北京市朝阳区国贸地铁站(公交站)，分析半径 1000 m。以下统计均为该半径范围内的地图 POI 点位。\n\n## 交通可达性\n\n地铁站出入口共 32 处，最近为「国贸地铁站A西北口」，距离 36 m。「国贸地铁站出入口」距离 57 m，「国贸地铁站D西南口」距离 106 m，「国贸地铁站出入口」距离 127 m，「国贸地铁站B东北口」距离 128 m。公交站共 24 处，最近为「国贸地铁站(公交站)」，距离 0 m。「国贸(公交站)」距离 352 m，「大北窑西(公交站)」距离 366 m，「国贸中心(公交站)」距离 372 m，「大北窑北(公交站)」距离 391 m。（依据：地铁站出入口、公交站）\n\n## 公共服务与商业\n\n教育（学校）共 17 处，最近为「首尔科学综合大学院大学中国代表处」，距离 272 m。「亚洲财经商学院」距离 330 m，「北京欧风小语种」距离 349 m，「清华大学附属小学商务中心区实验小学」距离 447 m，「THE ZEN DESIGN德真设计」距离 559 m。医疗（综合/专科医院）共 80 处，最近为「领医医美·RYOYI(银泰中心in01院区)」，距离 108 m。「北京生命汇医疗美容(银泰中心店)」距离 109 m，「北京臻瑞尚美医疗美容」距离 254 m，「五月花口腔诊所(国贸店)」距离 266 m，「北京八大处整形医疗美容门诊部」距离 274 m。商业（购物+餐饮）不少于 600 处，最近为「EMPORIO ARMANI(国贸商城店)」，距离 25 m。「Mulberry(北京国贸商城店)」距离 27 m，「BACHA COFFEE夿萐咖啡(北京国贸商城店)」距离 33 m，「HANLOON(国贸商城店)」距离 36 m，「Peet's Coffee皮爷咖啡(国贸店)」距离 49 m。（依据：教育（学校）、医疗（综合/专科医院）、商业（购物+餐饮））\n\n## 环境与潜在影响\n\n公园绿地共 15 处，最近为「国贸花园」，距离 265 m。「招商局大厦-中心花园」距离 381 m，「CBD森林公园」距离 460 m，「建外SOHO西区15号楼下沉广场」距离 500 m，「建外街道口袋公园」距离 631 m。工业（工厂+产业园区）共 10 处，最近为「包老板服装定制工厂」，距离 302 m。「可可兔自然光COCOTO(国贸店)」距离 304 m，「北京CBD核心区Z3项目(建设中)」距离 412 m，「中国(北京)自由贸易试验区国际商务服务片区」距离 442 m，「数配立方」距离 542 m。（依据：公园绿地、工业（工厂+产业园区））\n\n## 数据局限\n\n本简报数据为地图 POI 点位，不等于用地性质；地铁数据为出入口数量而非车站数；分类可能存在噪音，个别点位归类不准。","verified":true,"violations":[],"coverage":{"numbers":43,"bound":43},"attempts":1,"model":"deepseek-chat","generatedAt":"2026-09-30T05:44:25.400Z"}},{"id":"shougang","title":"首钢园","tag":"工业遗存改造","address":"北京市石景山区首钢园","stats":{"center":{"address":"北京市石景山区首钢园","lng":116.155232,"lat":39.915415},"radius":1000,"categories":[{"key":"metro","label":"地铁站出入口","count":9,"capped":false,"nearest":{"name":"北辛安地铁站A口","distanceM":772},"items":[{"name":"北辛安地铁站A口","distanceM":772},{"name":"北辛安(地铁站)","distanceM":819},{"name":"金安桥地铁站K口","distanceM":852},{"name":"北辛安地铁站B1口","distanceM":853},{"name":"北辛安地铁站C口","distanceM":870},{"name":"金安桥地铁站J口","distanceM":888},{"name":"北辛安地铁站B2口","distanceM":919},{"name":"北辛安地铁站B3口","distanceM":952},{"name":"金安桥地铁站H口","distanceM":977}]},{"key":"bus","label":"公交站","count":25,"capped":false,"nearest":{"name":"六工汇(公交站)","distanceM":29},"items":[{"name":"六工汇(公交站)","distanceM":29},{"name":"首钢设备库(公交站)","distanceM":207},{"name":"冬训中心(公交站)","distanceM":275},{"name":"大跳台(群明湖大街)(公交站)","distanceM":309},{"name":"首钢滑雪大跳台北(公交站)","distanceM":358},{"name":"香格里拉酒店(公交站)","distanceM":424},{"name":"群明湖西街(公交站)","distanceM":425},{"name":"石景山书院(公交站)","distanceM":434},{"name":"三高炉南广场(公交站)","distanceM":454},{"name":"一高炉南广场(公交站)","distanceM":504}]},{"key":"school","label":"教育（学校）","count":1,"capped":false,"nearest":{"name":"首钢幼教熙山府幼儿园","distanceM":981},"items":[{"name":"首钢幼教熙山府幼儿园","distanceM":981}]},{"key":"hospital","label":"医疗（综合/专科医院）","count":1,"capped":false,"nearest":{"name":"优辰口腔","distanceM":977},"items":[{"name":"优辰口腔","distanceM":977}]},{"key":"commerce","label":"商业（购物+餐饮）","count":214,"capped":false,"nearest":{"name":"THE WOODS餐厅(石景山六工汇购物广场店)","distanceM":53},"items":[{"name":"THE WOODS餐厅(石景山六工汇购物广场店)","distanceM":53},{"name":"LINLEE·手打柠檬茶(石景山六工汇店)","distanceM":66},{"name":"星巴克(北京首钢六工汇店)","distanceM":68},{"name":"北冰洋北平制冰厂(六工汇购物广场店)","distanceM":69},{"name":"书亦烧仙草(六工汇购物广场店)","distanceM":75},{"name":"CHAGEE霸王茶姬(北京六工汇购物广场店)","distanceM":79},{"name":"snow peak(六工汇购物广场店)","distanceM":85},{"name":"江北北火锅馆·熊猫主题(首钢店)","distanceM":86},{"name":"POP MART泡泡玛特(六工汇购物广场店)","distanceM":86},{"name":"六工汇购物广场","distanceM":86}]},{"key":"park","label":"公园绿地","count":7,"capped":false,"nearest":{"name":"首钢园","distanceM":0},"items":[{"name":"首钢园","distanceM":0},{"name":"沉淀池广场","distanceM":150},{"name":"首钢园北区","distanceM":159},{"name":"高线公园","distanceM":297},{"name":"吉野家(首钢融石广场店)","distanceM":597},{"name":"首钢园- 厂东门新址广场","distanceM":873},{"name":"Glorious Park","distanceM":914}]},{"key":"industry","label":"工业（工厂+产业园区）","count":10,"capped":false,"nearest":{"name":"六工汇","distanceM":189},"items":[{"name":"六工汇","distanceM":189},{"name":"六工汇·融智创新中心","distanceM":432},{"name":"石景山区特钢厂","distanceM":477},{"name":"制氧创新中心北区","distanceM":521},{"name":"首钢园制氧创新中心","distanceM":608},{"name":"制氧创新中心南区","distanceM":653},{"name":"首钢基金具身智能生态基地","distanceM":764},{"name":"金安科幻广场","distanceM":765},{"name":"元宇·漫游-全球科幻开发者大会科技概念展-中关村科幻产业创新中心","distanceM":797},{"name":"元玺示范区","distanceM":964}]}],"generatedAt":"2026-09-30T05:44:35.515Z","source":"高德开放平台","signature":"bf7ccc674c5571fbab25af3a33b1ab3e18d7ee9729b78b07bfcbb1888fe4e7f4","expiresAt":1790748875515},"report":{"text":"## 场地概况\n场地地址为北京市石景山区首钢园，分析范围以场地为中心半径 1000 m。范围内数据为地图 POI 点位，不等于用地性质；分类可能存在噪音，个别点位归类不准。以下各类别均按数据所载名称与距离陈述。\n\n## 交通可达性\n地铁站出入口共 9 处，最近为「北辛安地铁站A口」，距离 772 m；「北辛安(地铁站)」距离 819 m，「金安桥地铁站K口」距离 852 m。需说明的是，地铁数据为出入口数量而非车站数。公交站共 25 处，最近为「六工汇(公交站)」，距离 29 m；「首钢设备库(公交站)」距离 207 m，「冬训中心(公交站)」距离 275 m（依据：地铁站出入口、公交站）。\n\n## 公共服务与商业\n教育（学校）共 1 处，最近为「首钢幼教熙山府幼儿园」，距离 981 m。医疗（综合/专科医院）共 1 处，最近为「优辰口腔」，距离 977 m。商业（购物+餐饮）共 214 处，最近为「THE WOODS餐厅(石景山六工汇购物广场店)」，距离 53 m；「LINLEE·手打柠檬茶(石景山六工汇店)」距离 66 m，「星巴克(北京首钢六工汇店)」距离 68 m（依据：教育（学校）、医疗（综合/专科医院）、商业（购物+餐饮））。\n\n## 环境与潜在影响\n公园绿地共 7 处，最近为「首钢园」，距离 0 m；「沉淀池广场」距离 150 m，「首钢园北区」距离 159 m。工业（工厂+产业园区）共 10 处，最近为「六工汇」，距离 189 m；「六工汇·融智创新中心」距离 432 m，「石景山区特钢厂」距离 477 m（依据：公园绿地、工业（工厂+产业园区））。\n\n## 数据局限\n本简报所依据的数据为地图 POI 点位，不等于用地性质；地铁数据为出入口数量而非车站数；分类可能存在噪音，个别点位归类不准。范围内各类别数量均按数据所载如实陈述，未作计算、估算或汇总。","verified":true,"violations":[],"coverage":{"numbers":25,"bound":25},"attempts":1,"model":"deepseek-chat","generatedAt":"2026-09-30T05:44:38.107Z"}},{"id":"yizhuang","title":"亦庄","tag":"产业园区","address":"北京市大兴区亦庄经济技术开发区","stats":{"center":{"address":"北京市大兴区亦庄北京经济技术开发区","lng":116.506622,"lat":39.795275},"radius":1000,"categories":[{"key":"metro","label":"地铁站出入口","count":11,"capped":false,"nearest":{"name":"荣京东街地铁站A1北口","distanceM":578},"items":[{"name":"荣京东街地铁站A1北口","distanceM":578},{"name":"荣京东街地铁站A2北口","distanceM":585},{"name":"荣京东街(地铁站)","distanceM":626},{"name":"荣京东街地铁站B2南口","distanceM":675},{"name":"荣京东街地铁站B1南口","distanceM":679},{"name":"万源街地铁站B1南口","distanceM":803},{"name":"万源街地铁站B2南口","distanceM":811},{"name":"万源街地铁站D西南口","distanceM":851},{"name":"万源街(地铁站)","distanceM":857},{"name":"万源街地铁站A2北口","distanceM":913}]},{"key":"bus","label":"公交站","count":24,"capped":false,"nearest":{"name":"亦庄管委会(公交站)","distanceM":61},"items":[{"name":"亦庄管委会(公交站)","distanceM":61},{"name":"亦庄(公交站)","distanceM":144},{"name":"博大大厦(公交站)","distanceM":204},{"name":"宏达北路南口(公交站)","distanceM":405},{"name":"天宝园六里(公交站)","distanceM":462},{"name":"荣京东街西口(公交站)","distanceM":477},{"name":"博大公园(公交站)","distanceM":494},{"name":"经开创业园(公交站)","distanceM":503},{"name":"中和街(公交站)","distanceM":507},{"name":"天宝中路(公交站)","distanceM":675}]},{"key":"school","label":"教育（学校）","count":4,"capped":false,"nearest":{"name":"嘉慕传媒","distanceM":232},"items":[{"name":"嘉慕传媒","distanceM":232},{"name":"未来荣华金嵿国际幼儿园","distanceM":792},{"name":"美格幼儿园","distanceM":855},{"name":"北京微创技术学院","distanceM":998}]},{"key":"hospital","label":"医疗（综合/专科医院）","count":10,"capped":false,"nearest":{"name":"北京皓尔国际口腔医院(朝林店)","distanceM":242},"items":[{"name":"北京皓尔国际口腔医院(朝林店)","distanceM":242},{"name":"北京倪氏亦城嘉德口腔门诊部","distanceM":669},{"name":"吴辰齿科","distanceM":672},{"name":"雅康美口腔(上海沙龙新天地天宝商业中心店)","distanceM":779},{"name":"牙典口腔(上海沙龙新天地天宝商业中心店)","distanceM":834},{"name":"固特齿科","distanceM":926},{"name":"亦城口腔·种植·矫正·儿牙(亦庄院)","distanceM":930},{"name":"荣华医院","distanceM":949},{"name":"佳美口腔(亦庄店)","distanceM":950},{"name":"博泽生命科学医疗美容中心","distanceM":960}]},{"key":"commerce","label":"商业（购物+餐饮）","count":597,"capped":false,"nearest":{"name":"果栗园(亦庄创意广场店)","distanceM":9},"items":[{"name":"果栗园(亦庄创意广场店)","distanceM":9},{"name":"鲜十方·freshcube智能鲜饮机器人(经开区管委会站)","distanceM":66},{"name":"BOOM FRESH大牌美妆集合店(北京丰大店)","distanceM":185},{"name":"悦来中餐厅","distanceM":186},{"name":"丰大国际酒店·宴会厅","distanceM":187},{"name":"酒仙网国际名酒城(丰大国际店)","distanceM":188},{"name":"丰大国际·悦享露天音乐餐厅(亦庄荣华中路店)","distanceM":188},{"name":"丰大国际大酒店-自助餐厅","distanceM":189},{"name":"聚缘咖啡厅","distanceM":199},{"name":"中国联通(经济技术开发区营业厅(苹果授权厅))","distanceM":212}]},{"key":"park","label":"公园绿地","count":2,"capped":false,"nearest":{"name":"博大公园","distanceM":309},"items":[{"name":"博大公园","distanceM":309},{"name":"东方物语·城市更新雕塑展-国锐广场","distanceM":537}]},{"key":"industry","label":"工业（工厂+产业园区）","count":27,"capped":false,"nearest":{"name":"北京经济技术开发区","distanceM":0},"items":[{"name":"北京经济技术开发区","distanceM":0},{"name":"亦庄核心区","distanceM":44},{"name":"中国智库创新科学园","distanceM":163},{"name":"智能网联·创新园","distanceM":326},{"name":"经开创业园","distanceM":455},{"name":"中航科创北京工业园","distanceM":519},{"name":"国锐广场创新创业基地","distanceM":532},{"name":"中国(北京)高新视听产业园B座","distanceM":551},{"name":"中国国际电子商务中心","distanceM":604},{"name":"中国(北京)高新视听产业园","distanceM":621}]}],"generatedAt":"2026-09-30T05:44:48.816Z","source":"高德开放平台","signature":"9bdd43ee99634cc30e764d4ac2c6c7fcf6af64b30953c2e97350290b1a62942a","expiresAt":1790748888816},"report":{"text":"## 场地概况\n场地地址为北京市大兴区亦庄北京经济技术开发区，分析范围为半径 1000 m。范围内工业（工厂+产业园区）共 27 处，最近为「北京经济技术开发区」，距离 0 m；「亦庄核心区」距离 44 m；「中国智库创新科学园」距离 163 m。商业（购物+餐饮）共 597 处，最近为「果栗园(亦庄创意广场店)」，距离 9 m；「鲜十方·freshcube智能鲜饮机器人(经开区管委会站)」距离 66 m；「BOOM FRESH大牌美妆集合店(北京丰大店)」距离 185 m（依据：工业（工厂+产业园区）、商业（购物+餐饮））。\n\n## 交通可达性\n地铁站出入口共 11 处，最近为「荣京东街地铁站A1北口」，距离 578 m；「荣京东街地铁站A2北口」距离 585 m；「荣京东街(地铁站)」距离 626 m。公交站共 24 处，最近为「亦庄管委会(公交站)」，距离 61 m；「亦庄(公交站)」距离 144 m；「博大大厦(公交站)」距离 204 m（依据：地铁站出入口、公交站）。\n\n## 公共服务与商业\n教育（学校）共 4 处，最近为「嘉慕传媒」，距离 232 m；「未来荣华金嵿国际幼儿园」距离 792 m；「美格幼儿园」距离 855 m。医疗（综合/专科医院）共 10 处，最近为「北京皓尔国际口腔医院(朝林店)」，距离 242 m；「北京倪氏亦城嘉德口腔门诊部」距离 669 m；「吴辰齿科」距离 672 m。商业（购物+餐饮）共 597 处，最近为「果栗园(亦庄创意广场店)」，距离 9 m；「鲜十方·freshcube智能鲜饮机器人(经开区管委会站)」距离 66 m；「BOOM FRESH大牌美妆集合店(北京丰大店)」距离 185 m（依据：教育（学校）、医疗（综合/专科医院）、商业（购物+餐饮））。\n\n## 环境与潜在影响\n公园绿地共 2 处，最近为「博大公园」，距离 309 m；「东方物语·城市更新雕塑展-国锐广场」距离 537 m。工业（工厂+产业园区）共 27 处，最近为「北京经济技术开发区」，距离 0 m；「亦庄核心区」距离 44 m；「中国智库创新科学园」距离 163 m（依据：公园绿地、工业（工厂+产业园区））。\n\n## 数据局限\n本简报数据为地图 POI 点位，不等于用地性质；地铁数据为出入口数量而非车站数；分类可能存在噪音，个别点位归类不准。","verified":true,"violations":[],"coverage":{"numbers":36,"bound":36},"attempts":1,"model":"deepseek-chat","generatedAt":"2026-09-30T05:44:51.521Z"}},{"id":"badaling","title":"八达岭","tag":"偏远景区","address":"北京市延庆区八达岭长城","stats":{"center":{"address":"北京市延庆区八达岭长城","lng":116.016802,"lat":40.356188},"radius":1000,"categories":[{"key":"metro","label":"地铁站出入口","count":0,"capped":false,"nearest":null,"items":[]},{"key":"bus","label":"公交站","count":6,"capped":false,"nearest":{"name":"八达岭长城(公交站)","distanceM":372},"items":[{"name":"八达岭长城(公交站)","distanceM":372},{"name":"八达岭缆车索道北线路(公交站)","distanceM":617},{"name":"八达岭长城(公交站)","distanceM":689},{"name":"长城瓮城主入口途经站(公交站)","distanceM":845},{"name":"八达岭夜长城(公交站)","distanceM":875},{"name":"八达岭森林公园(公交站)","distanceM":999}]},{"key":"school","label":"教育（学校）","count":0,"capped":false,"nearest":null,"items":[]},{"key":"hospital","label":"医疗（综合/专科医院）","count":0,"capped":false,"nearest":null,"items":[]},{"key":"commerce","label":"商业（购物+餐饮）","count":59,"capped":false,"nearest":{"name":"长城纪念品","distanceM":189},"items":[{"name":"长城纪念品","distanceM":189},{"name":"虎头军煎饼(八达岭熊乐园店)","distanceM":218},{"name":"正新鸡排(熊乐园店)","distanceM":223},{"name":"蜜雪冰城(八达岭长城熊乐园店)","distanceM":253},{"name":"醉面(八达岭二店)","distanceM":255},{"name":"长城水果店","distanceM":256},{"name":"城边小店","distanceM":269},{"name":"德克士(八达岭二店)","distanceM":277},{"name":"中国兰州拉面(八达岭长城店)","distanceM":279},{"name":"长城礼物(八达岭店)","distanceM":298}]},{"key":"park","label":"公园绿地","count":5,"capped":false,"nearest":{"name":"八达岭熊乐园","distanceM":257},"items":[{"name":"八达岭熊乐园","distanceM":257},{"name":"八达岭长城-望京台","distanceM":267},{"name":"锁钥文化广场","distanceM":506},{"name":"八达岭北线索道登城口","distanceM":622},{"name":"八达岭北线索道下行站","distanceM":775}]},{"key":"industry","label":"工业（工厂+产业园区）","count":0,"capped":false,"nearest":null,"items":[]}],"generatedAt":"2026-09-30T05:45:03.491Z","source":"高德开放平台","signature":"e0b21be8b91aa5191d58ce567e1362ce6f3df6618101b6c57c93398d1b099ac7","expiresAt":1790748903491},"report":{"text":"## 场地概况\n场地地址为北京市延庆区八达岭长城，分析范围以场地为中心、半径 1000 m。本次统计共涉及地铁站出入口、公交站、教育（学校）、医疗（综合/专科医院）、商业（购物+餐饮）、公园绿地、工业（工厂+产业园区）七类设施。数据为地图 POI 点位，不等于用地性质；地铁数据为出入口数量而非车站数；分类可能存在噪音，个别点位归类不准。\n\n## 交通可达性\n地铁站出入口范围内未检索到（依据：地铁站出入口）。公交站共 6 处，最近为「八达岭长城(公交站)」，距离 372 m（依据：公交站）。其余较近的公交站点包括「八达岭缆车索道北线路(公交站)」距离 617 m、「八达岭长城(公交站)」距离 689 m、「长城瓮城主入口途经站(公交站)」距离 845 m、「八达岭夜长城(公交站)」距离 875 m、「八达岭森林公园(公交站)」距离 999 m（依据：公交站）。\n\n## 公共服务与商业\n教育（学校）范围内未检索到（依据：教育（学校））。医疗（综合/专科医院）范围内未检索到（依据：医疗（综合/专科医院））。商业（购物+餐饮）共 59 处，最近为「长城纪念品」，距离 189 m（依据：商业（购物+餐饮））。其余较近的商业设施包括「虎头军煎饼(八达岭熊乐园店)」距离 218 m、「正新鸡排(熊乐园店)」距离 223 m、「蜜雪冰城(八达岭长城熊乐园店)」距离 253 m、「醉面(八达岭二店)」距离 255 m、「长城水果店」距离 256 m、「城边小店」距离 269 m、「德克士(八达岭二店)」距离 277 m、「中国兰州拉面(八达岭长城店)」距离 279 m、「长城礼物(八达岭店)」距离 298 m（依据：商业（购物+餐饮））。\n\n## 环境与潜在影响\n公园绿地共 5 处，最近为「八达岭熊乐园」，距离 257 m（依据：公园绿地）。其余较近的公园绿地包括「八达岭长城-望京台」距离 267 m、「锁钥文化广场」距离 506 m、「八达岭北线索道登城口」距离 622 m、「八达岭北线索道下行站」距离 775 m（依据：公园绿地）。工业（工厂+产业园区）范围内未检索到（依据：工业（工厂+产业园区））。\n\n## 数据局限\n本次统计基于地图 POI 点位，点位分布不等同于实际用地性质；地铁相关数据为出入口数量而非车站数量；设施分类可能存在噪音，个别点位归类不准。上述内容仅陈述数据本身，不涉及设施之间的功能关系、步行可达性、场地功能混合程度或规划意图。","verified":true,"violations":[],"coverage":{"numbers":25,"bound":25},"attempts":1,"model":"deepseek-chat","generatedAt":"2026-09-30T05:45:06.391Z"}}];
 
-// ===== 校验逻辑：与 lib/verify.ts 行为一致 =====
+// ===== 校验逻辑：与 lib/verify.ts 行为一致（由对照测试保证）=====
+const MASK = "〓"; // 占位符：把「」内的名称遮住，保持下标不变
+const NUM = String.raw`\d{1,3}(?:,\d{3})+(?!\d)(?:\.\d+)?|\d+(?:\.\d+)?`; // 数字（含千位分隔符）
+const COUNT_UNIT = "[处个家座]";
+const DISTANCE_GAP = 12;
+const COUNT_GAP = 12;
+
+function maskNames(text) {
+  return text.replace(/「([^」]*)」/g, (_m, inner) => "「" + MASK.repeat(inner.length) + "」");
+}
+function tokenize(masked) {
+  return [...masked.matchAll(new RegExp(NUM, "g"))].map((m) => {
+    const value = m[0].replace(/,/g, "");
+    return { value, num: Number(value), start: m.index, end: m.index + m[0].length };
+  });
+}
 function extractNumbers(text) {
-  const s = text.replace(/「[^」]*」/g, "").replace(/(\d),(?=\d{3}(?!\d))/g, "$1");
-  return s.match(/\d+(?:\.\d+)?/g) || [];
+  return tokenize(maskNames(text)).map((t) => t.value);
 }
 function allowedNumbers(stats) {
   const a = new Set([stats.radius, stats.radius / 1000, stats.center.lng, stats.center.lat]);
@@ -171,11 +215,138 @@ function allowedNumbers(stats) {
   }
   return a;
 }
-function verifyReport(text, stats) {
+function verifyNumbersOnly(text, stats) {
   if (!text.trim()) return { ok: false, violations: ["简报内容为空"] };
   const allowed = allowedNumbers(stats);
   const violations = [...new Set(extractNumbers(text).filter((n) => !allowed.has(Number(n))))];
   return { ok: violations.length === 0, violations };
+}
+function escapeRe(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function aliasesOf(label) {
+  const base = label.split("（")[0];
+  const set = new Set([label, base]);
+  if (base.endsWith("出入口")) set.add(base.slice(0, -3));
+  return [...set].filter((a) => a.length >= 2);
+}
+function distancesByName(stats) {
+  const map = new Map();
+  const add = (name, d) => {
+    const list = map.get(name) || [];
+    if (!list.includes(d)) list.push(d);
+    map.set(name, list);
+  };
+  for (const c of stats.categories) {
+    for (const item of c.items) add(item.name, item.distanceM);
+    if (c.nearest) add(c.nearest.name, c.nearest.distanceM);
+  }
+  return map;
+}
+function describe(issue) {
+  switch (issue.kind) {
+    case "unknown-name": return issue.text + "（数据中无此设施）";
+    case "distance-mismatch":
+    case "count-mismatch": return issue.text + "（数据中为 " + issue.expected + "）";
+    default: return issue.text;
+  }
+}
+function verifyReport(text, stats) {
+  if (!text.trim()) {
+    const issue = { kind: "empty", text: "简报内容为空", span: [0, 0] };
+    return { ok: false, violations: [issue.text], issues: [issue], coverage: { numbers: 0, bound: 0, unbound: [] } };
+  }
+  const masked = maskNames(text);
+  const tokens = tokenize(masked);
+  const allowed = allowedNumbers(stats);
+  const issues = [];
+  const bound = new Map();
+
+  // 1) 名称存在 + 名称—距离配对
+  const byName = distancesByName(stats);
+  for (const m of text.matchAll(/「([^」]*)」/g)) {
+    const name = m[1];
+    const from = m.index + m[0].length;
+    const dists = byName.get(name);
+    if (!dists) {
+      issues.push({ kind: "unknown-name", text: "「" + name + "」", span: [m.index, from] });
+      continue;
+    }
+    let to = from;
+    while (to < masked.length && !"「。；！？\n".includes(masked[to])) to++;
+    const seg = masked.slice(from, to);
+    const first = tokenize(seg)[0];
+    if (!first || first.start > DISTANCE_GAP) continue;
+    if (seg.slice(0, first.start).includes("半径")) continue;
+    if (!/^\s*(?:m|米)(?![A-Za-z])/.test(seg.slice(first.end))) continue;
+    const start = from + first.start;
+    const ok = dists.includes(first.num);
+    bound.set(start, { ok });
+    if (!ok) {
+      issues.push({
+        kind: "distance-mismatch",
+        text: "「" + name + "」距离 " + first.value + " m",
+        expected: dists.join(" 或 ") + " m",
+        span: [start, from + first.end],
+      });
+    }
+  }
+
+  // 2) 类别—数量配对
+  const aliasToCat = new Map();
+  stats.categories.forEach((c, i) => aliasesOf(c.label).forEach((a) => aliasToCat.set(a, i)));
+  const aliasAlt = [...aliasToCat.keys()].sort((a, b) => b.length - a.length).map(escapeRe).join("|");
+  if (aliasAlt) {
+    const forward = new RegExp(
+      String.raw`(${aliasAlt})((?:(?!${aliasAlt})[^\d「」。；！？\n]){0,${COUNT_GAP}}?)(${NUM})\s*${COUNT_UNIT}`,
+      "g",
+    );
+    const backward = new RegExp(String.raw`(${NUM})\s*${COUNT_UNIT}\s*(?:的)?(${aliasAlt})`, "g");
+    const bindCount = (alias, valueText, numStart, matchStart, matchEnd) => {
+      if (bound.has(numStart)) return;
+      const cat = stats.categories[aliasToCat.get(alias)];
+      const value = Number(valueText.replace(/,/g, ""));
+      const ok = value === cat.count;
+      bound.set(numStart, { ok });
+      if (!ok) {
+        issues.push({
+          kind: "count-mismatch",
+          text: text.slice(matchStart, matchEnd),
+          expected: cat.count + " 处",
+          span: [numStart, numStart + valueText.length],
+        });
+      }
+    };
+    for (const m of masked.matchAll(forward)) {
+      const numStart = m.index + m[1].length + m[2].length;
+      bindCount(m[1], m[3], numStart, m.index, m.index + m[0].length);
+    }
+    for (const m of masked.matchAll(backward)) {
+      bindCount(m[2], m[1], m.index, m.index, m.index + m[0].length);
+    }
+  }
+
+  // 3) 半径视为已绑定；其余数字兜底检查
+  for (const t of tokens) {
+    if (bound.has(t.start)) continue;
+    const isRadius = t.num === stats.radius || t.num === stats.radius / 1000;
+    if (isRadius && /^\s*(?:m|米|km|公里|千米)/i.test(masked.slice(t.end, t.end + 4))) {
+      bound.set(t.start, { ok: true });
+    }
+  }
+  for (const t of tokens) {
+    if (bound.get(t.start)) continue;
+    if (!allowed.has(t.num)) issues.push({ kind: "unknown-number", text: t.value, span: [t.start, t.end] });
+  }
+
+  issues.sort((a, b) => a.span[0] - b.span[0]);
+  const unbound = tokens.filter((t) => !bound.has(t.start)).map((t) => ({ text: t.value, span: [t.start, t.end] }));
+  return {
+    ok: issues.length === 0,
+    violations: [...new Set(issues.map(describe))],
+    issues,
+    coverage: { numbers: tokens.length, bound: tokens.length - unbound.length, unbound },
+  };
 }
 
 // ===== 页面 =====
@@ -204,36 +375,46 @@ function renderCase() {
   ).join("");
 
   $("verifyBadge").innerHTML = report.verified
-    ? '<span class="badge ok">✓ 数字校验通过</span>'
-    : `<span class="badge bad">✗ 校验未通过：${esc(report.violations.join("、"))}</span>`;
+    ? '<span class="badge ok">✓ 校验通过</span>'
+    : `<span class="badge bad">✗ 校验未通过：${esc(report.violations.join("；"))}</span>`;
   $("reportText").innerHTML = report.text.split("\n").map((l) =>
     l.startsWith("## ") ? `<h3>${esc(l.slice(3))}</h3>` : l.trim() ? `<p>${esc(l)}</p>` : ""
   ).join("");
-  $("reportFoot").textContent = `由 ${report.model} 生成，共生成 ${report.attempts} 次；统计生成于 ${fmtDate(stats.generatedAt)}。预先生成，非实时查询。`;
+  const cov = report.coverage ? `简报中 ${report.coverage.numbers} 个数字，其中 ${report.coverage.bound} 个已与统计表逐项配对核对。` : "";
+  $("reportFoot").textContent = `由 ${report.model} 生成，共生成 ${report.attempts} 次；${cov}统计生成于 ${fmtDate(stats.generatedAt)}。预先生成，非实时查询。`;
 
   $("editor").value = report.text;
   liveCheck();
 }
 
-// 逐段扫描文本：「」内原样输出，其余数字若不在允许集合中则标红
-function highlight(text, allowed) {
-  return text.replace(/「[^」]*」|\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?/g, "\u0000$&\u0000")
-    .split("\u0000").map((seg, i) => {
-      if (i % 2 === 0) return esc(seg);
-      if (seg.startsWith("「")) return esc(seg);
-      return allowed.has(Number(seg.replace(/,/g, ""))) ? esc(seg) : `<mark>${esc(seg)}</mark>`;
-    }).join("");
+// 按违规位置把文本中的片段标红
+function renderMarked(text, issues) {
+  let out = "";
+  let pos = 0;
+  for (const i of issues) {
+    const s = i.span[0];
+    const e = i.span[1];
+    if (s < pos || e <= s) continue;
+    out += esc(text.slice(pos, s)) + "<mark>" + esc(text.slice(s, e)) + "</mark>";
+    pos = e;
+  }
+  return out + esc(text.slice(pos));
+}
+
+function badge(ok) {
+  return ok ? '<span class="badge ok">✓ 通过</span>' : '<span class="badge bad">✗ 未通过</span>';
 }
 
 function liveCheck() {
   const { stats } = DATA[current];
   const text = $("editor").value;
-  const r = verifyReport(text, stats);
-  $("liveBadge").innerHTML = r.ok
-    ? '<span class="badge ok">✓ 通过</span>'
-    : '<span class="badge bad">✗ 未通过</span>';
-  $("liveDetail").textContent = r.ok ? "所有数字都能在统计表中找到。" : `统计表中找不到的数字：${r.violations.join("、")}`;
-  $("preview").innerHTML = highlight(text, allowedNumbers(stats));
+  const now = verifyReport(text, stats);
+  const old = verifyNumbersOnly(text, stats);
+  $("oldBadge").innerHTML = badge(old.ok);
+  $("liveBadge").innerHTML = badge(now.ok);
+  $("liveIssues").innerHTML = now.violations.map((v) => `<li>${esc(v)}</li>`).join("");
+  $("liveCoverage").textContent = `简报中 ${now.coverage.numbers} 个数字，其中 ${now.coverage.bound} 个已与统计表逐项配对核对。`;
+  $("preview").innerHTML = renderMarked(text, now.issues);
 }
 
 // 找一个不在允许集合中的数字，保证注入的一定是“编造”的
@@ -243,20 +424,53 @@ function unusedNumber(allowed, start) {
   return n;
 }
 
+// 取当前案例里两个名称不同、距离不同的设施
+function twoItems(stats) {
+  const items = stats.categories.flatMap((c) => c.items);
+  for (const a of items) {
+    for (const b of items) {
+      if (a.name !== b.name && a.distanceM !== b.distanceM) return [a, b];
+    }
+  }
+  return [items[0], items[0]];
+}
+
+function append(sentence) {
+  $("editor").value += "\n\n" + sentence;
+  liveCheck();
+}
+
 $("editor").addEventListener("input", liveCheck);
 $("btnReset").addEventListener("click", () => { $("editor").value = DATA[current].report.text; liveCheck(); });
 $("btnFake").addEventListener("click", () => {
-  const allowed = allowedNumbers(DATA[current].stats);
-  $("editor").value += `\n\n另外，范围内还检索到公交站 ${unusedNumber(allowed, 45)} 处。`;
-  liveCheck();
+  const { stats } = DATA[current];
+  const cat = stats.categories.find((c) => c.count > 0) || stats.categories[0];
+  append(`另外，${cat.label}共 ${unusedNumber(allowedNumbers(stats), 45)} 处。`);
+});
+$("btnCount").addEventListener("click", () => {
+  const { stats } = DATA[current];
+  const cat = stats.categories.find((c) => c.count > 0) || stats.categories[0];
+  const d = stats.categories.flatMap((c) => c.items).map((i) => i.distanceM).find((x) => x !== cat.count);
+  append(`另外，${cat.label}共 ${d} 处。`);
+});
+$("btnDist").addEventListener("click", () => {
+  const [a, b] = twoItems(DATA[current].stats);
+  append(`另外，「${a.name}」距离 ${b.distanceM} m。`);
+});
+$("btnSwap").addEventListener("click", () => {
+  const [a, b] = twoItems(DATA[current].stats);
+  append(`另外，「${a.name}」距离 ${b.distanceM} m，「${b.name}」距离 ${a.distanceM} m。`);
+});
+$("btnRename").addEventListener("click", () => {
+  const [a] = twoItems(DATA[current].stats);
+  append(`另外，最近为「${a.name}旧址」，距离 ${a.distanceM} m。`);
 });
 $("btnCalc").addEventListener("click", () => {
   const { stats } = DATA[current];
   const allowed = allowedNumbers(stats);
   const cs = stats.categories.filter((c) => c.count > 0).slice(0, 2);
   const total = unusedNumber(allowed, cs.reduce((s, c) => s + c.count, 0) + 1);
-  $("editor").value += `\n\n综合来看，上述两类设施合计 ${total} 处，占比 ${unusedNumber(allowed, 12)}.5%。`;
-  liveCheck();
+  append(`综合来看，上述两类设施合计 ${total} 处，占比 ${unusedNumber(allowed, 12)}.5%。`);
 });
 
 renderTabs();
