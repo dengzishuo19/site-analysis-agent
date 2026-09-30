@@ -15,7 +15,7 @@ import { buildMapModel, type MapStats, type VizStats } from "./map-model.ts";
 import { countRows, distanceRows, type ChartStats } from "./chart-model.ts";
 import { escapeHtml, renderBarChart, renderFamilyKey } from "./chart-html.ts";
 import { VIZ_CSS } from "./viz-css.ts";
-import { fitZoom } from "./site-map.ts";
+import { cleanMapKey, fitZoom } from "./site-map.ts";
 
 // 与 lib/stats.ts 的 7 个类别一一对应的测试数据
 const KEYS: [string, string][] = [
@@ -155,6 +155,28 @@ test("无效坐标与未知类别被跳过，不会抛出异常", () => {
 
 test("同一输入产生相同输出（确定性）", () => {
   assert.deepEqual(buildMapModel(stats), buildMapModel(structuredClone(stats)));
+});
+
+// ===== 地图 Key =====
+
+test("Key 清理：去掉首尾空白、换行与引号；格式正确才返回", () => {
+  const key = "0123456789abcdef0123456789abcdef";
+  assert.equal(cleanMapKey(key), key);
+  assert.equal(cleanMapKey(`  ${key}  `), key);
+  assert.equal(cleanMapKey(`${key}${String.fromCharCode(10)}`), key);
+  assert.equal(cleanMapKey(`"${key}"`), key);
+  assert.equal(cleanMapKey(`'${key}'`), key);
+  assert.equal(cleanMapKey(` "${key}" `), key);
+});
+
+test("Key 清理：长度不对、含非法字符、中间有空格或为空时返回 null（线上曾因此出现“脚本已加载但不可用”）", () => {
+  const key = "0123456789abcdef0123456789abcdef";
+  assert.equal(cleanMapKey(key.slice(1)), null);
+  assert.equal(cleanMapKey(key + "a"), null);
+  assert.equal(cleanMapKey(`${key.slice(0, 10)} ${key.slice(10)}`), null);
+  assert.equal(cleanMapKey(`NEXT_PUBLIC_AMAP_JS_KEY=${key}`), null);
+  assert.equal(cleanMapKey(""), null);
+  assert.equal(cleanMapKey(undefined), null);
 });
 
 // ===== 地图取景 =====

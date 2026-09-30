@@ -35,6 +35,7 @@ const componentCss = `
 .viz-map-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .viz-status{position:absolute;left:8px;bottom:26px;z-index:10;padding:3px 8px;border-radius:6px;background:var(--viz-surface);color:var(--viz-ink-2);font-size:12px;box-shadow:0 1px 3px rgba(0,0,0,.25)}
 .viz-status:empty{display:none}
+.viz-status.is-center{left:50%;top:50%;bottom:auto;transform:translate(-50%,-50%);width:max-content;max-width:86%;text-align:center;white-space:normal}
 .viz-pin{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font:700 13px/1 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--c);color:var(--c-ink);border:2px solid var(--viz-surface);box-shadow:0 1px 3px rgba(0,0,0,.4);cursor:pointer;box-sizing:border-box}
 .viz-center{width:16px;height:16px;border-radius:50%;background:var(--viz-ink);border:3px solid var(--viz-surface);box-shadow:0 1px 3px rgba(0,0,0,.5);box-sizing:border-box}
 .viz-info{padding:2px 4px;font:13px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:#0b0b0b}

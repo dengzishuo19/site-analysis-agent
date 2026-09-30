@@ -24,7 +24,7 @@ function loadAMap(key: string): Promise<any> {
       const s = document.createElement("script");
       s.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(key)}`;
       s.async = true;
-      s.onload = () => (w.AMap ? resolve(w.AMap) : reject(new Error("地图脚本已加载但不可用")));
+      s.onload = () => (w.AMap ? resolve(w.AMap) : reject(new Error("地图脚本已加载但不可用（请检查 Key 是否有多余字符或已失效）")));
       s.onerror = () => {
         loading = null;
         reject(new Error("地图脚本加载失败"));
@@ -33,6 +33,13 @@ function loadAMap(key: string): Promise<any> {
     });
   }
   return loading;
+}
+
+// 清理并校验高德 Web 端 Key：去掉首尾空白与引号，必须是 32 位字母数字，否则返回 null。
+// 格式不对时高德不会报错，只会返回一个不定义 AMap 的脚本，页面上表现为“脚本已加载但不可用”，所以要在请求前拦住
+export function cleanMapKey(raw: string | undefined): string | null {
+  const k = (raw ?? "").trim().replace(/^["']+|["']+$/g, "").trim();
+  return /^[0-9a-zA-Z]{32}$/.test(k) ? k : null;
 }
 
 // 让半径圆刚好放进容器（四周留边距）的缩放级别：Web 墨卡托，256 像素瓦片
@@ -124,14 +131,18 @@ export function mountSiteMap(root: HTMLElement, model: MapModel, opts: MountOpti
       canvas.append(img);
       status.textContent = `${reason}，显示截图`;
     } else {
+      status.classList.add("is-center"); // 没有截图时把提示放在框中间
       status.textContent = reason;
     }
   };
 
   // 加载前先判断：没有 Key、不是 http(s) 页面（如双击打开的 file:// 或 data:）、域名不在白名单，都直接显示截图，避免出现无提示的空白地图
-  const blocked = !opts.key
+  const key = cleanMapKey(opts.key);
+  const blocked = !opts.key?.trim()
     ? "未配置地图 Key"
-    : !/^https?:$/.test(location.protocol)
+    : !key
+      ? "地图 Key 格式不正确（应为 32 位字母数字，请检查环境变量里有没有多余的空格、换行或引号）"
+      : !/^https?:$/.test(location.protocol)
       ? "当前打开方式不支持交互地图"
       : opts.allowedHosts && !opts.allowedHosts.includes(location.hostname)
         ? "当前访问域名未获得地图授权"
@@ -148,7 +159,7 @@ export function mountSiteMap(root: HTMLElement, model: MapModel, opts: MountOpti
     if (!destroyed && status.textContent) status.textContent = "地图加载较慢，请稍候；若一直空白，可能是网络或访问域名未获授权";
   }, SLOW_MS);
 
-  loadAMap(opts.key as string) // 没有 Key 时上面已经走了兜底分支
+  loadAMap(key as string) // Key 缺失或格式不对时上面已经走了兜底分支
     .then((AMap) => {
       if (destroyed) return;
       const center: [number, number] = [model.center.lng, model.center.lat];
