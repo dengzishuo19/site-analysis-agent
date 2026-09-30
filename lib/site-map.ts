@@ -106,7 +106,7 @@ export function mountSiteMap(root: HTMLElement, model: MapModel, opts: MountOpti
   const canvas = el("div", "viz-map-canvas");
   const status = el("div", "viz-status");
   box.append(canvas, status);
-  const note = el("p", "viz-note", "点击标记查看详情，点击图例可隐藏或显示某一类别；每类只标出距离最近的至多 10 处设施。圆为检索范围。");
+  const note = el("p", "viz-note", "点击标记查看详情，点击图例可隐藏或显示某一类别；地铁站出入口全部标出，其余每类只标出距离最近的至多 10 处设施。圆为检索范围。");
   root.append(legend, box, note);
 
   let infoWindow: any = null;

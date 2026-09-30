@@ -1,5 +1,6 @@
 // 高德地图 Web 服务封装：只在服务端使用，Key 从环境变量读取
 import type { Geocode, RawPoi } from "@/lib/geo-resolve";
+import type { AroundPoi, ParentInfo } from "@/lib/poi-filter";
 
 export type GeocodeResult = {
   address: string;
@@ -76,32 +77,71 @@ export async function geocode(address: string, city = "北京"): Promise<Geocode
   return { address: hit.formatted_address, lng, lat };
 }
 
-// 周边搜索：返回范围内某类设施的总数，以及按距离排序的前若干条
-export async function searchAround(
-  center: { lng: number; lat: number },
-  types: string,
-  radius: number,
-  limit: number,
-): Promise<{ count: number; pois: Poi[] }> {
-  const data = await amapGet("/v3/place/around", {
-    location: `${center.lng},${center.lat}`,
-    types,
-    radius: String(radius),
-    offset: "25", // 高德单页上限；多取一些再自己排序，因为高德返回顺序并不严格按距离
-    page: "1",
-    sortrule: "distance",
-  });
-  const pois: Poi[] = (data.pois ?? []).map((p: Record<string, string>) => {
-    const [lng, lat] = p.location.split(",").map(Number);
-    return { name: p.name, distanceM: Number(p.distance), lng, lat };
-  });
-  pois.sort((a, b) => a.distanceM - b.distanceM);
-  return { count: Number(data.count), pois: pois.slice(0, limit) };
-}
-
 // 取字符串：高德对空值常返回空数组 []，统一转成字符串
 function text(v: unknown): string {
   return Array.isArray(v) ? v.join("") : String(v ?? "");
+}
+
+const AROUND_PAGE_SIZE = 25; // 高德单页上限
+const AROUND_MAX_PAGES = 3; // 最多取 3 页（75 条）；噪点折叠需要看到尽量多的点位
+const PAGE_GAP_MS = 350;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// 周边搜索：按距离取前若干页，返回高德给出的总数与原始点位（含 id、type、parent，供噪点折叠）
+export async function searchAroundRaw(
+  center: { lng: number; lat: number },
+  types: string,
+  radius: number,
+): Promise<{ total: number; pois: AroundPoi[] }> {
+  const pois: AroundPoi[] = [];
+  let total = 0;
+  for (let page = 1; page <= AROUND_MAX_PAGES; page++) {
+    const data = await amapGet("/v3/place/around", {
+      location: `${center.lng},${center.lat}`,
+      types,
+      radius: String(radius),
+      offset: String(AROUND_PAGE_SIZE),
+      page: String(page),
+      sortrule: "distance",
+      extensions: "all", // 带上 parent 字段
+    });
+    total = Number(data.count);
+    const batch: Record<string, unknown>[] = data.pois ?? [];
+    for (const p of batch) {
+      const [lng, lat] = text(p.location).split(",").map(Number);
+      pois.push({
+        id: text(p.id),
+        name: text(p.name),
+        type: text(p.type),
+        parent: text(p.parent),
+        distanceM: Number(text(p.distance)),
+        lng,
+        lat,
+      });
+    }
+    if (batch.length < AROUND_PAGE_SIZE || pois.length >= total) break;
+    await sleep(PAGE_GAP_MS);
+  }
+  return { total, pois };
+}
+
+// 批量查询点位详情（用于取折叠所需的父级名称、类型、位置）；高德一次最多 10 个 id，失败的批次静默跳过（过滤退化为保留）
+export async function getPoiDetails(ids: string[]): Promise<ParentInfo[]> {
+  const out: ParentInfo[] = [];
+  for (let i = 0; i < ids.length; i += 10) {
+    try {
+      const data = await amapGet("/v3/place/detail", { id: ids.slice(i, i + 10).join("|"), extensions: "all" });
+      for (const p of (data.pois ?? []) as Record<string, unknown>[]) {
+        const [lng, lat] = text(p.location).split(",").map(Number);
+        out.push({ id: text(p.id), name: text(p.name), type: text(p.type), lng, lat });
+      }
+    } catch (err) {
+      if (err instanceof RateLimitError) throw err;
+    }
+    await sleep(PAGE_GAP_MS);
+  }
+  return out;
 }
 
 // 地理编码：返回北京市内的全部命中（含定位精度 level），供判断定位是否够具体；没有命中时抛出 AddressNotFoundError
