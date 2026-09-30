@@ -4,6 +4,8 @@ import { sanitizeAddress } from "@/lib/input";
 import { resolveSecret, signPayload } from "@/lib/sign";
 import { analyzeSite } from "@/lib/stats";
 
+export const maxDuration = 60; // 7 类设施依次检索，通常需要 10 到 15 秒
+
 // 去掉错误信息里可能出现的 Key，防止泄露到前端
 function safeMessage(err: unknown): string {
   let msg = err instanceof Error ? err.message : String(err);
