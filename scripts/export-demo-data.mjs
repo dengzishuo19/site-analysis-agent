@@ -25,11 +25,13 @@ for (const c of CASES) {
   const report = await rr.json();
   if (!rr.ok) throw new Error(`${c.title} 简报失败：${report.error}`);
 
-  // 设施坐标不写入演示数据
+  // 去掉签名字段；设施保留名称、距离与坐标（地图标记需要坐标，均为高德公开的 POI 数据）
+  delete stats.signature;
+  delete stats.expiresAt;
   stats.categories = stats.categories.map((cat) => ({
     ...cat,
     nearest: cat.nearest && { name: cat.nearest.name, distanceM: cat.nearest.distanceM },
-    items: cat.items.map((p) => ({ name: p.name, distanceM: p.distanceM })),
+    items: cat.items.map((p) => ({ name: p.name, distanceM: p.distanceM, lng: p.lng, lat: p.lat })),
   }));
 
   console.log(`${c.title}: verified=${report.verified} attempts=${report.attempts}`);

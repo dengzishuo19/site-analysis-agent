@@ -1,12 +1,11 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { BarCharts, SiteMap, VizStyles, type VizStats } from "./components/SiteViz";
 
-type Poi = { name: string; distanceM: number };
-type CategoryStat = { key: string; label: string; count: number; capped: boolean; nearest: Poi | null };
-type SiteStats = {
-  center: { address: string; lng: number; lat: number };
-  radius: number;
+type Poi = { name: string; distanceM: number; lng: number; lat: number };
+type CategoryStat = { key: string; label: string; count: number; capped: boolean; nearest: Poi | null; items: Poi[] };
+type SiteStats = VizStats & {
   categories: CategoryStat[];
   generatedAt: string;
   source: string;
@@ -115,7 +114,23 @@ export default function Home() {
 
       {error && <ErrorNote problem={error} className="mt-4" />}
 
+      <VizStyles />
+
       {stats && <StatsTable stats={stats} />}
+
+      {stats && (
+        <section className="mt-8">
+          <h2 className="mb-3 text-lg font-semibold">周边设施地图</h2>
+          <SiteMap stats={stats} />
+        </section>
+      )}
+
+      {stats && (
+        <section className="mt-8">
+          <h2 className="mb-3 text-lg font-semibold">设施对比</h2>
+          <BarCharts stats={stats} />
+        </section>
+      )}
 
       {reportLoading && <p className="mt-6 text-sm text-gray-500">简报生成中…（约 20–40 秒）</p>}
       {reportError && <ErrorNote problem={reportError} className="mt-6" />}

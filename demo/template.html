@@ -70,6 +70,11 @@
   button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .verdicts { margin: 10px 0; font-size: 14px; }
   .verdicts div { margin: 4px 0; }
+  .card > h2 { margin-top: 0; }
+  .viz-grid { display: grid; gap: 24px; }
+</style>
+<style id="viz-css">
+/*__VIZ_CSS__*/
 </style>
 </head>
 <body>
@@ -92,6 +97,17 @@
       </table>
     </div>
     <p class="foot">数量为高德 POI 点位数，不等于用地性质；地铁按出入口计数；“≥”表示高德返回总数已封顶，实际更多。</p>
+  </section>
+
+  <section class="card">
+    <h2>周边设施地图</h2>
+    <div id="mapMount"></div>
+    <p class="foot" id="mapFoot"></p>
+  </section>
+
+  <section class="card">
+    <h2>设施对比</h2>
+    <div class="viz viz-grid" id="chartsMount"></div>
   </section>
 
   <section class="card report">
@@ -184,6 +200,11 @@
 </main>
 
 <script>
+// ===== 可视化模块：由构建脚本从 lib/ 转译嵌入，与应用共用同一份源码 =====
+/*__VIZ__*/
+
+const MAP_KEY = /*__MAP_KEY__*/null;
+const MAP_HOSTS = /*__MAP_HOSTS__*/null; // 高德白名单里的域名，只有在这些域名下才加载交互地图
 const DATA = /*__DATA__*/null;
 
 // ===== 校验逻辑：与 lib/verify.ts 行为一致（由对照测试保证）=====
@@ -384,6 +405,25 @@ function renderCase() {
 
   $("editor").value = report.text;
   liveCheck();
+  renderViz();
+}
+
+// 渲染地图与条形图（切换案例时重新挂载）
+let mapHandle = null;
+function renderViz() {
+  const { id, stats } = DATA[current];
+  $("chartsMount").innerHTML =
+    renderBarChart({ title: "各类设施数量", note: "“≥”表示高德返回总数已封顶，实际更多；条形长度相对最大的一类。", rows: countRows(stats) }) +
+    renderBarChart({ title: "最近设施距离", note: "条形越短越近；长度相对检索半径。", rows: distanceRows(stats) }) +
+    renderFamilyKey();
+  if (mapHandle) mapHandle.destroy();
+  mapHandle = mountSiteMap($("mapMount"), buildMapModel(stats), {
+    key: MAP_KEY,
+    dark: window.matchMedia("(prefers-color-scheme: dark)").matches,
+    fallbackImage: `maps/${id}.png`,
+    allowedHosts: MAP_HOSTS,
+  });
+  $("mapFoot").textContent = "地图数据来自高德地图。交互地图不可用时（例如断网或直接双击打开文件）显示同一位置的截图。";
 }
 
 // 按违规位置把文本中的片段标红
