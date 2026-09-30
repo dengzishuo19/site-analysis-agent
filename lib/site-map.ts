@@ -35,6 +35,12 @@ function loadAMap(key: string): Promise<any> {
   return loading;
 }
 
+// 让半径圆刚好放进容器（四周留边距）的缩放级别：Web 墨卡托，256 像素瓦片
+export function fitZoom(sizePx: number, radiusM: number, lat: number): number {
+  const usable = Math.max(120, sizePx - 60);
+  return Math.log2((156543.03392 * Math.cos((lat * Math.PI) / 180) * usable) / (2 * radiusM));
+}
+
 // 创建元素并设置类名与文字
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
@@ -53,6 +59,7 @@ export function mountSiteMap(root: HTMLElement, model: MapModel, opts: MountOpti
   let destroyed = false;
   let map: any = null;
   let slowTimer: ReturnType<typeof setTimeout> | undefined;
+  let resizeObserver: ResizeObserver | undefined;
   const markersByCat = new Map<string, any[]>();
   const hidden = new Set<string>();
 
@@ -101,6 +108,7 @@ export function mountSiteMap(root: HTMLElement, model: MapModel, opts: MountOpti
   const showFallback = (reason: string) => {
     if (destroyed) return;
     clearTimeout(slowTimer);
+    resizeObserver?.disconnect();
     try {
       map?.destroy();
     } catch {
@@ -151,10 +159,28 @@ export function mountSiteMap(root: HTMLElement, model: MapModel, opts: MountOpti
         resizeEnable: true,
         mapStyle: opts.dark ? "amap://styles/dark" : "amap://styles/normal",
       });
+      // 按容器尺寸计算缩放级别，取景到半径圆；不依赖高德的 setFitView（容器尺寸未确定时它会失效）
+      const applyFit = () => {
+        const w = canvas.clientWidth;
+        const h = canvas.clientHeight;
+        if (map && w > 0 && h > 0) map.setZoomAndCenter(fitZoom(Math.min(w, h), model.radius, model.center.lat), center, true);
+      };
+      let fitted = false;
       map.on("complete", () => {
         clearTimeout(slowTimer);
         if (!destroyed) status.textContent = "";
+        applyFit();
       });
+      if (typeof ResizeObserver !== "undefined") {
+        // 容器第一次有了尺寸时（例如页面在后台创建、之后才显示）再取景一次
+        resizeObserver = new ResizeObserver(() => {
+          if (!fitted && canvas.clientWidth > 0 && canvas.clientHeight > 0) {
+            fitted = true;
+            applyFit();
+          }
+        });
+        resizeObserver.observe(canvas);
+      }
       // 把当前缩放级别写到容器上，便于调试与自动化测试
       root.dataset.zoom = String(map.getZoom());
       map.on("zoomend", () => {
@@ -194,7 +220,7 @@ export function mountSiteMap(root: HTMLElement, model: MapModel, opts: MountOpti
         list.push(marker);
         markersByCat.set(m.categoryKey, list);
       }
-      map.setFitView([circle], true, [30, 30, 30, 30]);
+      applyFit();
     })
     .catch((err: Error) => showFallback(err.message));
 
@@ -202,6 +228,7 @@ export function mountSiteMap(root: HTMLElement, model: MapModel, opts: MountOpti
     destroy: () => {
       destroyed = true;
       clearTimeout(slowTimer);
+      resizeObserver?.disconnect();
       try {
         map?.destroy();
       } catch {

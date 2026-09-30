@@ -227,7 +227,7 @@
     <li>地铁按<strong>出入口</strong>计数，不是车站数。</li>
     <li>高德返回的总数在约 600 处封顶（如国贸的商业类），页面标注为“≥”。</li>
     <li>分类存在噪音：例如“教育”里会出现培训机构、“工业”里会出现服装定制店；简报会提示但不做过滤。</li>
-    <li><strong>校验器只认得固定句式。</strong>在提示词要求的固定句式下，对 24 份真实简报中的 766 个数字，全部被配对核对过（覆盖率 100%）。但这是对“按模板写出来的文字”的度量，不代表任何自由文本都能被核对：认不出的数字只核对是否出现在统计表里，不判违规，如果模型换了一种校验器不认识的说法，把错数字放在里面，仍可能漏过。</li>
+    <li><strong>校验器只认得固定句式。</strong>在提示词要求的固定句式下，对 24 份真实简报中的 766 个数字，全部被配对核对过（覆盖率 100%；此后新生成的简报偶尔有 1 个数字未配对，例如免责说明里泛指的“数量为 0 的类别”，它在统计表里，不算违规）。但这是对“按模板写出来的文字”的度量，不代表任何自由文本都能被核对：认不出的数字只核对是否出现在统计表里，不判违规，如果模型换了一种校验器不认识的说法，把错数字放在里面，仍可能漏过。</li>
     <li>名称与距离的配对不区分类别：同名设施只要距离匹配任意一条记录即通过。</li>
     <li>仅覆盖北京；本页为预先生成的结果，更新算法后需重新导出。</li>
   </ul>
@@ -591,6 +591,12 @@ function loadAMap(key        )               {
   return loading;
 }
 
+// 让半径圆刚好放进容器（四周留边距）的缩放级别：Web 墨卡托，256 像素瓦片
+function fitZoom(sizePx        , radiusM        , lat        )         {
+  const usable = Math.max(120, sizePx - 60);
+  return Math.log2((156543.03392 * Math.cos((lat * Math.PI) / 180) * usable) / (2 * radiusM));
+}
+
 // 创建元素并设置类名与文字
 function el                                       (tag   , className         , text         )                           {
   const node = document.createElement(tag);
@@ -609,6 +615,7 @@ function mountSiteMap(root             , model          , opts              )   
   let destroyed = false;
   let map      = null;
   let slowTimer                                           ;
+  let resizeObserver                            ;
   const markersByCat = new Map               ();
   const hidden = new Set        ();
 
@@ -657,6 +664,7 @@ function mountSiteMap(root             , model          , opts              )   
   const showFallback = (reason        ) => {
     if (destroyed) return;
     clearTimeout(slowTimer);
+    resizeObserver?.disconnect();
     try {
       map?.destroy();
     } catch {
@@ -707,10 +715,28 @@ function mountSiteMap(root             , model          , opts              )   
         resizeEnable: true,
         mapStyle: opts.dark ? "amap://styles/dark" : "amap://styles/normal",
       });
+      // 按容器尺寸计算缩放级别，取景到半径圆；不依赖高德的 setFitView（容器尺寸未确定时它会失效）
+      const applyFit = () => {
+        const w = canvas.clientWidth;
+        const h = canvas.clientHeight;
+        if (map && w > 0 && h > 0) map.setZoomAndCenter(fitZoom(Math.min(w, h), model.radius, model.center.lat), center, true);
+      };
+      let fitted = false;
       map.on("complete", () => {
         clearTimeout(slowTimer);
         if (!destroyed) status.textContent = "";
+        applyFit();
       });
+      if (typeof ResizeObserver !== "undefined") {
+        // 容器第一次有了尺寸时（例如页面在后台创建、之后才显示）再取景一次
+        resizeObserver = new ResizeObserver(() => {
+          if (!fitted && canvas.clientWidth > 0 && canvas.clientHeight > 0) {
+            fitted = true;
+            applyFit();
+          }
+        });
+        resizeObserver.observe(canvas);
+      }
       // 把当前缩放级别写到容器上，便于调试与自动化测试
       root.dataset.zoom = String(map.getZoom());
       map.on("zoomend", () => {
@@ -750,7 +776,7 @@ function mountSiteMap(root             , model          , opts              )   
         list.push(marker);
         markersByCat.set(m.categoryKey, list);
       }
-      map.setFitView([circle], true, [30, 30, 30, 30]);
+      applyFit();
     })
     .catch((err       ) => showFallback(err.message));
 
@@ -758,6 +784,7 @@ function mountSiteMap(root             , model          , opts              )   
     destroy: () => {
       destroyed = true;
       clearTimeout(slowTimer);
+      resizeObserver?.disconnect();
       try {
         map?.destroy();
       } catch {

@@ -15,6 +15,7 @@ import { buildMapModel, type MapStats, type VizStats } from "./map-model.ts";
 import { countRows, distanceRows, type ChartStats } from "./chart-model.ts";
 import { escapeHtml, renderBarChart, renderFamilyKey } from "./chart-html.ts";
 import { VIZ_CSS } from "./viz-css.ts";
+import { fitZoom } from "./site-map.ts";
 
 // 与 lib/stats.ts 的 7 个类别一一对应的测试数据
 const KEYS: [string, string][] = [
@@ -154,6 +155,21 @@ test("无效坐标与未知类别被跳过，不会抛出异常", () => {
 
 test("同一输入产生相同输出（确定性）", () => {
   assert.deepEqual(buildMapModel(stats), buildMapModel(structuredClone(stats)));
+});
+
+// ===== 地图取景 =====
+
+test("取景缩放：420 像素高、半径 1 km 时约为 14.4（与浏览器实测一致）", () => {
+  const z = fitZoom(420, 1000, 39.908658);
+  assert.ok(z > 14.3 && z < 14.5, String(z));
+});
+
+test("取景缩放：容器越大缩放越大，半径越大缩放越小，纬度越高缩放越小（同样的距离占更多像素）；极小容器被限制", () => {
+  assert.ok(fitZoom(600, 1000, 40) > fitZoom(300, 1000, 40));
+  assert.ok(fitZoom(400, 2000, 40) < fitZoom(400, 1000, 40));
+  assert.ok(fitZoom(400, 1000, 60) < fitZoom(400, 1000, 30));
+  assert.equal(fitZoom(10, 1000, 40), fitZoom(0, 1000, 40));
+  assert.ok(Number.isFinite(fitZoom(0, 1000, 40)));
 });
 
 // ===== 图表模型 =====
