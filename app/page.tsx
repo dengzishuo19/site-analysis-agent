@@ -23,6 +23,10 @@ type Report = {
 
 type Problem = { message: string; showDemo: boolean };
 
+// 定位含糊时服务器返回的候选（pick 是服务器签发的令牌，选中后凭它继续分析）
+type Choice = { name: string; district: string; address: string; type: string; pick: string };
+type ChoiceSet = { query: string; reason: string; candidates: Choice[] };
+
 const DEMO_URL = "https://dengzishuo19.github.io/site-analysis-agent/";
 
 type Check = { ok: boolean; result?: unknown; error?: string };
@@ -37,6 +41,7 @@ export default function Home() {
   const [report, setReport] = useState<Report | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState<Problem | null>(null);
+  const [choices, setChoices] = useState<ChoiceSet | null>(null);
   const runId = useRef(0); // 防止旧请求的结果覆盖新请求
 
   // 根据统计数据请求大模型简报
@@ -59,7 +64,8 @@ export default function Home() {
     }
   }
 
-  async function analyze() {
+  // 请求场地统计：成功则依次展示统计、地图、图表、简报；定位含糊时显示候选让用户选择
+  async function runSite(url: string) {
     const id = ++runId.current;
     setLoading(true);
     setError(null);
@@ -68,12 +74,16 @@ export default function Home() {
     setReportError(null);
     setReportLoading(false);
     try {
-      const res = await fetch(`/api/site?address=${encodeURIComponent(address)}`);
+      const res = await fetch(url);
       const data = await res.json();
       if (id !== runId.current) return;
       if (!res.ok) {
-        setError({ message: data.error ?? "分析失败", showDemo: res.status === 429 });
+        setChoices(null);
+        setError({ message: data.error ?? "分析失败", showDemo: res.status === 429 || res.status === 503 });
+      } else if (data.kind === "choose") {
+        setChoices(data);
       } else {
+        setChoices(null);
         setStats(data);
         fetchReport(data, id);
       }
@@ -82,6 +92,16 @@ export default function Home() {
     } finally {
       if (id === runId.current) setLoading(false);
     }
+  }
+
+  function analyze() {
+    setChoices(null);
+    runSite(`/api/site?address=${encodeURIComponent(address)}`);
+  }
+
+  function pickCandidate(c: Choice) {
+    setChoices(null);
+    runSite(`/api/site?pick=${encodeURIComponent(c.pick)}`);
   }
 
   return (
@@ -113,6 +133,8 @@ export default function Home() {
       </form>
 
       {error && <ErrorNote problem={error} className="mt-4" />}
+
+      {choices && <ChoiceList choices={choices} onPick={pickCandidate} disabled={loading} />}
 
       <VizStyles />
 
@@ -158,6 +180,38 @@ function ErrorNote({ problem, className }: { problem: Problem; className: string
   );
 }
 
+// 候选列表：定位含糊时让用户选择具体地点（例如“北京建筑大学”有西城、大兴两个校区）
+function ChoiceList({ choices, onPick, disabled }: { choices: ChoiceSet; onPick: (c: Choice) => void; disabled: boolean }) {
+  const title =
+    choices.reason === "multiple"
+      ? `“${choices.query}”有多个可能的地点，请选择：`
+      : `没能确定“${choices.query}”具体指哪里，请选择一个地点：`;
+  return (
+    <section className="mt-6 rounded border p-4" aria-live="polite">
+      <p className="text-sm font-semibold">{title}</p>
+      <ul className="mt-3 space-y-2">
+        {choices.candidates.map((c) => (
+          <li key={c.pick}>
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => onPick(c)}
+              className="w-full rounded border px-3 py-2 text-left text-sm hover:bg-gray-100 disabled:opacity-50 dark:hover:bg-gray-800"
+            >
+              <span className="font-medium">{c.name}</span>
+              <span className="block text-xs text-gray-500">
+                {[c.district, c.address].filter(Boolean).join(" · ")}
+                {c.type ? `　｜　${c.type}` : ""}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-3 text-xs text-gray-500">都不是？请在上面输入更具体的名称（例如加上“西城校区”）后重新分析。</p>
+    </section>
+  );
+}
+
 // 统计结果表格：各类设施的数量与最近设施
 function StatsTable({ stats }: { stats: SiteStats }) {
   return (
@@ -165,6 +219,7 @@ function StatsTable({ stats }: { stats: SiteStats }) {
       <p className="text-sm">
         定位：{stats.center.address}（{stats.center.lng}, {stats.center.lat}），半径 {stats.radius} m
       </p>
+      <p className="mt-1 text-xs text-gray-500">如果这不是你要找的地点，请输入更具体的名称重新分析。</p>
       <table className="mt-3 w-full border-collapse text-sm">
         <thead>
           <tr className="border-b text-left">

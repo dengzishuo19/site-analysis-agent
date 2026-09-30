@@ -13,8 +13,14 @@ const CASES = [
 
 const out = [];
 for (const c of CASES) {
-  const sr = await fetch(`${BASE}/api/site?address=${encodeURIComponent(c.address)}`);
-  const stats = await sr.json();
+  let sr = await fetch(`${BASE}/api/site?address=${encodeURIComponent(c.address)}`);
+  let stats = await sr.json();
+  if (sr.ok && stats.kind === "choose") {
+    // 定位含糊时服务器返回候选：演示数据固定选第一个，保证重新导出的结果可复现
+    console.log(`${c.title}: 有 ${stats.candidates.length} 个候选，选第一个「${stats.candidates[0].name}」`);
+    sr = await fetch(`${BASE}/api/site?pick=${encodeURIComponent(stats.candidates[0].pick)}`);
+    stats = await sr.json();
+  }
   if (!sr.ok) throw new Error(`${c.title} 统计失败：${stats.error}`);
 
   const rr = await fetch(`${BASE}/api/report`, {

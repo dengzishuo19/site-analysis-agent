@@ -34,10 +34,8 @@ export type SiteStats = {
   source: string;
 };
 
-// 对一个地址做周边设施统计（各类别依次请求，避免触发频率限制）
-export async function analyzeSite(address: string): Promise<SiteStats> {
-  const center = await geocode(address);
-
+// 对一个已定位的中心点做周边设施统计（各类别依次请求，避免触发频率限制）
+export async function analyzeCenter(center: { address: string; lng: number; lat: number }): Promise<SiteStats> {
   const categories: CategoryStat[] = [];
   for (const cat of CATEGORIES) {
     const { count, pois } = await searchAround(center, cat.types, RADIUS_M, TOP_N);
@@ -59,4 +57,9 @@ export async function analyzeSite(address: string): Promise<SiteStats> {
     generatedAt: new Date().toISOString(),
     source: "高德开放平台",
   };
+}
+
+// 对一个地址做周边设施统计（直接地理编码，不判断定位精度；接口层使用 analyzeCenter）
+export async function analyzeSite(address: string): Promise<SiteStats> {
+  return analyzeCenter(await geocode(address));
 }

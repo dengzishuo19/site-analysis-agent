@@ -1,4 +1,5 @@
 // 高德地图 Web 服务封装：只在服务端使用，Key 从环境变量读取
+import type { Geocode, RawPoi } from "@/lib/geo-resolve";
 
 export type GeocodeResult = {
   address: string;
@@ -96,4 +97,56 @@ export async function searchAround(
   });
   pois.sort((a, b) => a.distanceM - b.distanceM);
   return { count: Number(data.count), pois: pois.slice(0, limit) };
+}
+
+// 取字符串：高德对空值常返回空数组 []，统一转成字符串
+function text(v: unknown): string {
+  return Array.isArray(v) ? v.join("") : String(v ?? "");
+}
+
+// 地理编码：返回北京市内的全部命中（含定位精度 level），供判断定位是否够具体；没有命中时抛出 AddressNotFoundError
+export async function geocodeAll(address: string, city = "北京"): Promise<Geocode[]> {
+  let data;
+  try {
+    data = await amapGet("/v3/geocode/geo", { address, city });
+  } catch (err) {
+    if (err instanceof AmapApiError && err.infocode === "30001") {
+      throw new AddressNotFoundError(`未在北京找到该地点：${address}`);
+    }
+    throw err;
+  }
+  const hits: Geocode[] = (data.geocodes ?? [])
+    .filter((g: Record<string, unknown>) => text(g.province) === "北京市")
+    .map((g: Record<string, unknown>) => {
+      const [lng, lat] = text(g.location).split(",").map(Number);
+      return { formatted: text(g.formatted_address), level: text(g.level), lng, lat, district: text(g.district) };
+    });
+  if (!hits.length) throw new AddressNotFoundError(`未在北京找到该地点：${address}`);
+  return hits;
+}
+
+// 关键字搜索：返回北京市内匹配的 POI（extensions=all，含 parent 字段，用来区分校区本身与校内子点位）
+export async function searchKeyword(keywords: string, city = "北京"): Promise<RawPoi[]> {
+  const data = await amapGet("/v3/place/text", {
+    keywords,
+    city,
+    citylimit: "true",
+    offset: "20",
+    page: "1",
+    extensions: "all",
+  });
+  return (data.pois ?? []).map((p: Record<string, unknown>) => {
+    const [lng, lat] = text(p.location).split(",").map(Number);
+    return {
+      id: text(p.id),
+      name: text(p.name),
+      lng,
+      lat,
+      district: text(p.adname),
+      address: text(p.address),
+      type: text(p.type),
+      parent: text(p.parent),
+      province: text(p.pname),
+    };
+  });
 }
