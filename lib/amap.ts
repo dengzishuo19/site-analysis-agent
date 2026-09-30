@@ -93,9 +93,10 @@ export async function searchAroundRaw(
   center: { lng: number; lat: number },
   types: string,
   radius: number,
-): Promise<{ total: number; pois: AroundPoi[] }> {
+): Promise<{ total: number; pois: AroundPoi[]; exhausted: boolean }> {
   const pois: AroundPoi[] = [];
   let total = 0;
+  let exhausted = false; // 最后一页没满，说明已取完（高德的总数有时比实际多 1）
   for (let page = 1; page <= AROUND_MAX_PAGES; page++) {
     const data = await amapGet("/v3/place/around", {
       location: `${center.lng},${center.lat}`,
@@ -120,10 +121,13 @@ export async function searchAroundRaw(
         lat,
       });
     }
-    if (batch.length < AROUND_PAGE_SIZE || pois.length >= total) break;
+    if (batch.length < AROUND_PAGE_SIZE || pois.length >= total) {
+      exhausted = true;
+      break;
+    }
     await sleep(PAGE_GAP_MS);
   }
-  return { total, pois };
+  return { total, pois, exhausted };
 }
 
 // 批量查询点位详情（用于取折叠所需的父级名称、类型、位置）；高德一次最多 10 个 id，失败的批次静默跳过（过滤退化为保留）

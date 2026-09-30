@@ -40,13 +40,13 @@ export type SiteStats = {
 // 检索一个类别并折叠噪点。
 // 只取前几页：若没取完且确实折叠过，过滤后的数量只是下限（capped）；没折叠过则沿用高德给的总数
 async function searchCategory(center: { lng: number; lat: number }, types: string, fold: boolean, topN: number) {
-  const { total, pois: raw } = await searchAroundRaw(center, types, RADIUS_M);
+  const { total, pois: raw, exhausted } = await searchAroundRaw(center, types, RADIUS_M);
   const parentIds = fold ? parentIdsToResolve(raw) : [];
   const parents = new Map((parentIds.length ? await getPoiDetails(parentIds) : []).map((p) => [p.id, p]));
   const { pois, folded } = fold
     ? foldSubUnits(raw, parents, center, RADIUS_M)
     : { pois: raw.map(({ name, distanceM, lng, lat }) => ({ name, distanceM, lng, lat })), folded: 0 };
-  const truncated = raw.length < total;
+  const truncated = !exhausted;
   return {
     count: truncated && folded === 0 ? total : pois.length,
     pois: pois.slice(0, topN),
