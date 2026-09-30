@@ -56,7 +56,7 @@ const devSecret = randomBytes(32).toString("hex"); // 开发环境的进程内�
 export function resolveSecret(env: { NODE_ENV?: string; SIGNING_SECRET?: string }): string {
   if (env.SIGNING_SECRET) return env.SIGNING_SECRET;
   if (env.NODE_ENV === "production") {
-    throw new Error("生产环境未配置 SIGNING_SECRET，拒绝启动");
+    throw new Error("生产环境未配置 SIGNING_SECRET，所有请求将返回 500");
   }
   return devSecret;
 }

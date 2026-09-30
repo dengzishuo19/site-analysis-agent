@@ -44,7 +44,7 @@ npm run dev                  # 打开 http://localhost:3000
 npm test                     # 运行校验器的单元测试
 ```
 
-`.env.local` 已被 `.gitignore` 忽略，Key 只在服务端使用，不会出现在前端代码或返回结果中。生产环境还需要配置 `SIGNING_SECRET`（随机字符串，生成方法见 `.env.example`），缺少时服务拒绝启动。
+`.env.local` 已被 `.gitignore` 忽略，Key 只在服务端使用，不会出现在前端代码或返回结果中。生产环境还需要配置 `SIGNING_SECRET`（随机字符串，生成方法见 `.env.example`），缺少时所有页面和接口都会返回 500（安全失败，不会放行未签名的数据）。
 
 ## 公开部署的防护
 
