@@ -45,7 +45,7 @@ if (vizBundle.includes("</script")) throw new Error("可视化脚本中含有 </
 
 const link = (label, url) =>
   url ? `<a href="${url}" target="_blank" rel="noopener">${label}</a>` : `<span class="soon">${label}（即将上线）</span>`;
-const links = [link("GitHub 仓库", repo), link("在线体验版（可输入地址）", live)].join("\n    ");
+const links = [link("GitHub 仓库", repo), link("在线体验版（可输入地址；国内网络无法打开，需海外网络）", live)].join("\n    ");
 
 const html = fs
   .readFileSync("demo/template.html", "utf8")
