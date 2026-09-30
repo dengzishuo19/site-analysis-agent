@@ -10,8 +10,12 @@ function safeMessage(err: unknown): string {
   return msg;
 }
 
-// 连通性检查：同时测试高德地理编码和大模型调用，互不影响
+// 连通性检查：同时测试高德地理编码和大模型调用，互不影响；生产环境不对外开放
 export async function GET() {
+  if (process.env.NODE_ENV === "production") {
+    return Response.json({ error: "Not Found" }, { status: 404 });
+  }
+
   const [amap, llm] = await Promise.allSettled([
     geocode("北京市海淀区清华大学东门"),
     chat("请用一句话回答：1+1 等于几？"),

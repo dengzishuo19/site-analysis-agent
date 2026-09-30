@@ -21,6 +21,10 @@ type Report = {
   generatedAt: string;
 };
 
+type Problem = { message: string; showDemo: boolean };
+
+const DEMO_URL = "https://dengzishuo19.github.io/site-analysis-agent/";
+
 type Check = { ok: boolean; result?: unknown; error?: string };
 type Health = { amap: Check; llm: Check };
 
@@ -29,10 +33,10 @@ export default function Home() {
   const [address, setAddress] = useState("");
   const [stats, setStats] = useState<SiteStats | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Problem | null>(null);
   const [report, setReport] = useState<Report | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
-  const [reportError, setReportError] = useState<string | null>(null);
+  const [reportError, setReportError] = useState<Problem | null>(null);
   const runId = useRef(0); // 防止旧请求的结果覆盖新请求
 
   // 根据统计数据请求大模型简报
@@ -46,10 +50,10 @@ export default function Home() {
       });
       const body = await res.json();
       if (id !== runId.current) return;
-      if (!res.ok) setReportError(body.error ?? "简报生成失败");
+      if (!res.ok) setReportError({ message: body.error ?? "简报生成失败", showDemo: res.status === 429 });
       else setReport(body);
     } catch {
-      if (id === runId.current) setReportError("无法访问服务，简报生成失败");
+      if (id === runId.current) setReportError({ message: "无法访问服务，简报生成失败", showDemo: false });
     } finally {
       if (id === runId.current) setReportLoading(false);
     }
@@ -68,13 +72,13 @@ export default function Home() {
       const data = await res.json();
       if (id !== runId.current) return;
       if (!res.ok) {
-        setError(data.error ?? "分析失败");
+        setError({ message: data.error ?? "分析失败", showDemo: res.status === 429 });
       } else {
         setStats(data);
         fetchReport(data, id);
       }
     } catch {
-      if (id === runId.current) setError("无法访问服务，请确认开发服务器正在运行");
+      if (id === runId.current) setError({ message: "无法访问服务，请稍后再试", showDemo: true });
     } finally {
       if (id === runId.current) setLoading(false);
     }
@@ -96,27 +100,45 @@ export default function Home() {
           value={address}
           onChange={(e) => setAddress(e.target.value)}
           placeholder="例如：北京市朝阳区国贸地铁站"
+          maxLength={60}
           className="flex-1 rounded border px-3 py-2"
         />
         <button
           type="submit"
           disabled={loading}
-          className="rounded bg-black px-4 py-2 text-white disabled:opacity-50"
+          className="rounded bg-black px-4 py-2 text-white disabled:opacity-50 dark:bg-white dark:text-black"
         >
           {loading ? "分析中…（约 10 秒）" : "分析"}
         </button>
       </form>
 
-      {error && <p className="mt-4 text-red-600">{error}</p>}
+      {error && <ErrorNote problem={error} className="mt-4" />}
 
       {stats && <StatsTable stats={stats} />}
 
       {reportLoading && <p className="mt-6 text-sm text-gray-500">简报生成中…（约 20–40 秒）</p>}
-      {reportError && <p className="mt-6 text-red-600">{reportError}</p>}
+      {reportError && <ErrorNote problem={reportError} className="mt-6" />}
       {report && <ReportView report={report} />}
 
-      <HealthCheck />
+      {process.env.NODE_ENV !== "production" && <HealthCheck />}
     </main>
+  );
+}
+
+// 错误提示：超限或服务不可用时附带静态演示链接
+function ErrorNote({ problem, className }: { problem: Problem; className: string }) {
+  return (
+    <p className={`${className} text-red-600`}>
+      {problem.message}
+      {problem.showDemo && (
+        <>
+          {" "}
+          <a href={DEMO_URL} className="underline" target="_blank" rel="noopener noreferrer">
+            查看静态演示
+          </a>
+        </>
+      )}
+    </p>
   );
 }
 
