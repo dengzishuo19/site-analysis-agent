@@ -641,7 +641,7 @@ function mountSiteMap(root             , model          , opts              )   
     btn.setAttribute("aria-pressed", "true");
     btn.disabled = item.markers === 0;
     btn.title = `${item.label}：共 ${item.capped ? "不少于 " : ""}${item.count} 处，地图标出最近的 ${item.markers} 处`;
-    btn.append(el("span", "viz-badge", item.glyph), document.createTextNode(`${item.label} ${item.markers}`));
+    btn.append(el("span", "viz-badge", item.glyph), document.createTextNode(`${item.label} ${item.markers === item.count ? item.markers : `${item.markers} / ${item.capped ? "≥" : ""}${item.count}`}`));
     (btn.firstChild               ).setAttribute("aria-hidden", "true");
     btn.addEventListener("click", () => {
       const nowHidden = !hidden.has(item.key);
@@ -663,7 +663,7 @@ function mountSiteMap(root             , model          , opts              )   
   const canvas = el("div", "viz-map-canvas");
   const status = el("div", "viz-status");
   box.append(canvas, status);
-  const note = el("p", "viz-note", "点击标记查看详情，点击图例可隐藏或显示某一类别；地铁站出入口全部标出，其余每类只标出距离最近的至多 10 处设施。圆为检索范围。");
+  const note = el("p", "viz-note", "点击标记查看详情，点击图例可隐藏或显示某一类别；图例中“标出数 / 总数”表示地图标出的数量与该类设施总数；地铁站出入口全部标出，其余每类只标出距离最近的至多 10 处。圆为检索范围。");
   root.append(legend, box, note);
 
   let infoWindow      = null;
