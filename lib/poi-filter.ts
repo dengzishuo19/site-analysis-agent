@@ -42,10 +42,11 @@ export function foldSubUnits(
   parents: Map<string, ParentInfo>,
   center: { lng: number; lat: number },
   radius: number,
-): { pois: Poi[]; folded: number } {
+): { pois: Poi[]; folded: number; keptIds: Set<string> } {
   const ids = new Set(pois.map((p) => p.id));
   const kept: Poi[] = [];
   const keptById = new Map<string, Poi>();
+  const keptIds = new Set<string>(); // 以自身身份留在结果里的原始点位（被合并成父级的子点位不在其中）
   const closestChild = new Map<string, AroundPoi>(); // 父级在结果里时，其子点位中离场地最近的一个
   const groups = new Map<string, AroundPoi[]>();
   let folded = 0;
@@ -55,6 +56,7 @@ export function foldSubUnits(
       const poi = toPoi(p);
       kept.push(poi);
       keptById.set(p.id, poi);
+      keptIds.add(p.id);
     } else if (ids.has(p.parent)) {
       folded++;
       const cur = closestChild.get(p.parent);
@@ -67,6 +69,7 @@ export function foldSubUnits(
         groups.set(par.id, g);
       } else {
         kept.push(toPoi(p));
+        keptIds.add(p.id);
       }
     }
   }
@@ -95,7 +98,7 @@ export function foldSubUnits(
   }
 
   kept.sort((a, b) => a.distanceM - b.distanceM);
-  return { pois: kept, folded };
+  return { pois: kept, folded, keptIds };
 }
 
 function toPoi(p: AroundPoi): Poi {
