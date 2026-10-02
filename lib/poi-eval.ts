@@ -1,6 +1,6 @@
 // 噪点过滤的度量：把过滤规则跑在人工标注的测试集（docs/testset/labels.json）上，数出误杀与漏网
 // 标签：K 保留（独立设施）/ S 内部子单元 / M 类别归错；误杀 = K 被去除，漏网 = S 或 M 被保留
-import { foldSubUnits, type AroundPoi, type ParentInfo } from "./poi-filter.ts";
+import { filterPois, foldSubUnits, type AroundPoi, type ParentInfo } from "./poi-filter.ts";
 
 export type LabeledPoi = {
   i: number;
@@ -36,11 +36,13 @@ export type Metrics = {
   missRate: number;
 };
 
-// 当前线上规则：按 parent 折叠子点位
-export const currentRule: FilterRule = (pois, g) => {
-  const parents = new Map<string, ParentInfo>(Object.entries(g.parents).map(([id, p]) => [id, { id, ...p }]));
-  return foldSubUnits(pois, parents, g.center, 1000).keptIds;
-};
+const parentsOf = (g: LabeledGroup) => new Map<string, ParentInfo>(Object.entries(g.parents).map(([id, p]) => [id, { id, ...p }]));
+
+// 第一版规则（仅按 parent 折叠），保留作对照基线
+export const parentOnlyRule: FilterRule = (pois, g) => foldSubUnits(pois, parentsOf(g), g.center, 1000).keptIds;
+
+// 当前规则（stats.ts 实际使用的完整流程）
+export const currentRule: FilterRule = (pois, g) => filterPois(pois, parentsOf(g), g.center, 1000, g.category).keptIds;
 
 function toAround(r: LabeledPoi): AroundPoi {
   return { id: r.id, name: r.name, type: r.type, parent: r.parentId, distanceM: r.distanceM, lng: r.lng, lat: r.lat };

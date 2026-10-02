@@ -1,6 +1,6 @@
 // 场地周边设施统计：全部由代码计算，不调用大模型
 import { geocode, getPoiDetails, searchAroundRaw, type Poi } from "@/lib/amap";
-import { foldSubUnits, parentIdsToResolve } from "@/lib/poi-filter";
+import { filterPois, parentIdsToResolve } from "@/lib/poi-filter";
 
 // ===== 可调参数 =====
 export const RADIUS_M = 1000; // 检索半径（米）
@@ -26,7 +26,7 @@ export type CategoryStat = {
   capped: boolean; // true 表示实际数量可能大于 count
   nearest: Poi | null;
   items: Poi[];
-  folded: number; // 被折叠的校内/院内子点位数量（已从 count 与 items 中剔除）
+  folded: number; // 被过滤的点位数量：校内/院内子点位与类别归错的点位（已从 count 与 items 中剔除）
 };
 
 export type SiteStats = {
@@ -39,12 +39,12 @@ export type SiteStats = {
 
 // 检索一个类别并折叠噪点。
 // 只取前几页：若没取完且确实折叠过，过滤后的数量只是下限（capped）；没折叠过则沿用高德给的总数
-async function searchCategory(center: { lng: number; lat: number }, types: string, fold: boolean, topN: number) {
-  const { total, pois: raw, exhausted } = await searchAroundRaw(center, types, RADIUS_M);
-  const parentIds = fold ? parentIdsToResolve(raw) : [];
+async function searchCategory(center: { lng: number; lat: number }, cat: { key: string; types: string; fold: boolean }, topN: number) {
+  const { total, pois: raw, exhausted } = await searchAroundRaw(center, cat.types, RADIUS_M);
+  const parentIds = cat.fold ? parentIdsToResolve(raw) : [];
   const parents = new Map((parentIds.length ? await getPoiDetails(parentIds) : []).map((p) => [p.id, p]));
-  const { pois, folded } = fold
-    ? foldSubUnits(raw, parents, center, RADIUS_M)
+  const { pois, folded } = cat.fold
+    ? (({ pois, folded, removed }) => ({ pois, folded: folded + removed }))(filterPois(raw, parents, center, RADIUS_M, cat.key))
     : { pois: raw.map(({ name, distanceM, lng, lat }) => ({ name, distanceM, lng, lat })), folded: 0 };
   const truncated = !exhausted;
   return {
@@ -58,7 +58,7 @@ async function searchCategory(center: { lng: number; lat: number }, types: strin
 export async function analyzeCenter(center: { address: string; lng: number; lat: number }): Promise<SiteStats> {
   const categories: CategoryStat[] = [];
   for (const cat of CATEGORIES) {
-    const { count, pois, folded } = await searchCategory(center, cat.types, cat.fold, cat.key === "metro" ? TOP_N_METRO : TOP_N);
+    const { count, pois, folded } = await searchCategory(center, cat, cat.key === "metro" ? TOP_N_METRO : TOP_N);
     categories.push({
       key: cat.key,
       label: cat.label,

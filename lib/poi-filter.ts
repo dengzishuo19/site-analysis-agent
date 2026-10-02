@@ -2,6 +2,7 @@
 // 依据高德的 parent 字段（已用北京建筑大学、协和医院、国贸等真实数据核对：子点位的 parent 指向所属机构）。
 // 纯函数，不访问网络；父级详情由调用方先取好传入。
 import type { Poi } from "@/lib/amap";
+import { baseName, isIndependentBranch, misclassifiedReason, typePart } from "./poi-rules.ts";
 
 // 周边搜索返回的原始点位（含 id 与 parent）
 export type AroundPoi = Poi & { id: string; type: string; parent: string };
@@ -57,13 +58,17 @@ export function foldSubUnits(
       kept.push(poi);
       keptById.set(p.id, poi);
       keptIds.add(p.id);
+    } else if (ids.has(p.parent) && isIndependentBranch(p, pois.find((q) => q.id === p.parent))) {
+      kept.push(toPoi(p));
+      keptById.set(p.id, kept[kept.length - 1]);
+      keptIds.add(p.id);
     } else if (ids.has(p.parent)) {
       folded++;
       const cur = closestChild.get(p.parent);
       if (!cur || p.distanceM < cur.distanceM) closestChild.set(p.parent, p);
     } else {
       const par = parents.get(p.parent);
-      if (par && topType(par.type) === topType(p.type)) {
+      if (par && topType(par.type) === topType(p.type) && !isIndependentBranch(p, par)) {
         const g = groups.get(par.id) ?? [];
         g.push(p);
         groups.set(par.id, g);
@@ -103,4 +108,39 @@ export function foldSubUnits(
 
 function toPoi(p: AroundPoi): Poi {
   return { name: p.name, distanceM: p.distanceM, lng: p.lng, lat: p.lat };
+}
+
+// 完整的过滤流程：
+// 1. 剔除类别归错的点位（培训机构、协会、药店、写字楼里标成“工厂”的公司等）；
+// 2. 教育、医疗：名称以大学或医院的名称开头的（如“北京大学”与“北京大学法学院”），视为该机构的内部单元（高德没给 parent 的校内点位）；
+// 3. 按 parent 折叠子点位（foldSubUnits）。
+// removed 为被前两步剔除的点位数；folded 为第 3 步折叠掉的数量。
+export function filterPois(
+  pois: AroundPoi[],
+  parents: Map<string, ParentInfo>,
+  center: { lng: number; lat: number },
+  radius: number,
+  category: string,
+): { pois: Poi[]; folded: number; removed: number; keptIds: Set<string> } {
+  const removedIds = new Set<string>();
+  for (const p of pois) {
+    if (misclassifiedReason(p, category, parents.get(p.parent)?.type)) removedIds.add(p.id);
+  }
+
+  if (category === "school" || category === "hospital") {
+    const roots = pois.filter((p) => !removedIds.has(p.id));
+    for (const p of roots) {
+      const n = baseName(p.name);
+      const hasRoot = roots.some((q) => {
+        const qn = baseName(q.name);
+        // 只有“大学”“医院”这样的大机构才有内部单元；幼儿园、小学之间名称相近多是不同园区
+        const bigRoot = category === "school" ? typePart(q.type, 2) === "高等院校" : /医院$/.test(qn);
+        return bigRoot && q.id !== p.id && qn.length >= 4 && n.length > qn.length && n.startsWith(qn) && topType(q.type) === topType(p.type) && !isIndependentBranch(p, q);
+      });
+      if (hasRoot) removedIds.add(p.id);
+    }
+  }
+
+  const r = foldSubUnits(pois.filter((p) => !removedIds.has(p.id)), parents, center, radius);
+  return { pois: r.pois, folded: r.folded, removed: removedIds.size, keptIds: r.keptIds };
 }
