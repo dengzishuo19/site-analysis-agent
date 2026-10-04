@@ -1,5 +1,4 @@
 // 高德静态地图参数：用于生成演示页的兜底截图（本地脚本调用），纯函数，便于单测
-import { FAMILIES } from "./palette.ts";
 import type { MapModel } from "./map-model.ts";
 
 export const MAX_STATIC_MARKERS = 45; // 高德静态地图的标记上限为 50，留出中心点与余量
@@ -51,7 +50,7 @@ export function buildStaticMapParams(
   const groups = new Map<string, { color: string; glyph: string; points: string[] }>();
   for (const m of capped) {
     const k = `${m.family}|${m.glyph}`;
-    const g = groups.get(k) ?? { color: FAMILIES[m.family].light.replace("#", "0x"), glyph: m.glyph, points: [] };
+    const g = groups.get(k) ?? { color: "0x141414" /* 黑白：类别靠单字区分，底图保留彩色 */, glyph: m.glyph, points: [] };
     g.points.push(pt(m.lng, m.lat));
     groups.set(k, g);
   }

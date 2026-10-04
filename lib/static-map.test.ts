@@ -34,14 +34,11 @@ test("无设施的类别不产生标记段；每段带颜色与类别单字；�
   assert.ok(segs[segs.length - 1].startsWith("mid,0x0b0b0b,中:116.459242,39.908658"));
 });
 
-test("同一类型族的类别使用同一颜色（洋红：教医商），不同族颜色不同", () => {
+// 派工单 013：页面改为黑白，静态地图的设施标记统一为墨色，类别靠单字区分（底图保留彩色）
+test("设施标记统一为墨色，类别靠单字区分", () => {
   const segs = buildStaticMapParams(model).markers.split("|");
   const color = (glyph: string) => segs.find((s) => s.includes(`,${glyph}:`))!.split(",")[1];
-  assert.equal(color("教"), color("医"));
-  assert.equal(color("医"), color("商"));
-  assert.notEqual(color("地"), color("教"));
-  assert.notEqual(color("园"), color("教"));
-  assert.match(color("地"), /^0x[0-9a-f]{6}$/);
+  for (const g of ["地", "公", "教", "医", "商", "园"]) assert.equal(color(g), "0x141414", g);
 });
 
 test("坐标格式为 6 位小数，经度在前", () => {

@@ -237,18 +237,18 @@ export default function Home() {
       {stats && (
         <div className="mt-8 grid gap-8 lg:grid-cols-2">
           <section className="min-w-0">
-            <h2 className="mb-3 text-lg font-semibold">周边设施地图</h2>
+            <div className="mb-3 flex items-baseline gap-3 border-t-[3px] border-ink pt-3"><span className="font-mono text-xs">图 1</span><h2 className="text-sm font-medium tracking-widest">周边设施地图</h2></div>
             <SiteMap stats={stats} />
           </section>
           <section className="min-w-0">
-            <h2 className="mb-3 text-lg font-semibold">设施对比</h2>
+            <div className="mb-3 flex items-baseline gap-3 border-t-[3px] border-ink pt-3"><span className="font-mono text-xs">图 2</span><h2 className="text-sm font-medium tracking-widest">设施对比</h2></div>
             <BarCharts stats={stats} />
           </section>
         </div>
       )}
 
       {reportStale && (
-        <p className="mt-6 text-sm text-amber-700">
+        <p className="mt-6 text-sm text-ink-2">
           统计口径已改变，之前的简报已作废。{" "}
           <button type="button" onClick={regenerateReport} className="underline">
             按当前口径重新生成简报
@@ -286,11 +286,11 @@ function TrustBar({ stats, report, reportLoading, reportStale }: { stats: SiteSt
   else if (reportLoading) reportChip = <span className={chip}>… 简报生成中，生成后逐条校验</span>;
   else if (report?.verified)
     reportChip = (
-      <span className={`${chip} border-green-300 text-green-800 dark:border-green-800 dark:text-green-300`}>
+      <span className={`${chip} border-ink`}>
         ✓ 简报 {report.coverage.numbers} 个数字已全部核对，其中 {report.coverage.bound} 个与具体设施或类别逐一配对
       </span>
     );
-  else if (report) reportChip = <span className={`${chip} border-red-300 text-red-700 dark:border-red-800 dark:text-red-400`}>✗ 简报有内容未通过校验（见下方）</span>;
+  else if (report) reportChip = <span className={`${chip} border-ink font-medium`}>✗ 简报有内容未通过校验（见下方）</span>;
 
   return (
     <div className="mt-6 flex flex-wrap gap-2 text-xs" aria-label="数据可信度">
@@ -353,7 +353,7 @@ function LoadingSteps() {
 // 错误提示：超限或服务不可用时附带静态演示链接
 function ErrorNote({ problem, className }: { problem: Problem; className: string }) {
   return (
-    <p className={`${className} text-red-600`}>
+    <p className={`${className} font-medium text-ink`}>
       {problem.message}
       {problem.showDemo && (
         <>
@@ -375,7 +375,7 @@ function ChoiceList({ choices, onPick, disabled }: { choices: ChoiceSet; onPick:
       : `没能确定“${choices.query}”具体指哪里，请选择一个地点：`;
   return (
     <section className="mt-6 rounded border p-4" aria-live="polite">
-      <p className="text-sm font-semibold">{title}</p>
+      <p className="text-sm font-medium">{title}</p>
       <ul className="mt-3 space-y-2">
         {choices.candidates.map((c) => (
           <li key={c.pick}>
@@ -383,7 +383,7 @@ function ChoiceList({ choices, onPick, disabled }: { choices: ChoiceSet; onPick:
               type="button"
               disabled={disabled}
               onClick={() => onPick(c)}
-              className="w-full rounded border px-3 py-2 text-left text-sm hover:bg-gray-100 disabled:opacity-50 dark:hover:bg-gray-800"
+              className="w-full rounded border px-3 py-2 text-left text-sm hover:bg-paper-2 disabled:opacity-50"
             >
               <span className="font-medium">{c.name}</span>
               <span className="block text-xs text-ink-3">
@@ -413,34 +413,34 @@ function StatsTable({
 }) {
   return (
     <section className="mt-6">
-      <p className="text-sm">
-        定位：{stats.center.address}（{stats.center.lng}, {stats.center.lat}），半径 {stats.radius} m
+      <p className="text-xs tracking-wide text-ink-2">
+        {stats.center.address}<span className="block font-mono sm:ml-3 sm:inline">{stats.center.lng.toFixed(6)} E　{stats.center.lat.toFixed(6)} N　R {stats.radius} m</span>
       </p>
       <p className="mt-1 text-xs text-ink-3">如果这不是你要找的地点，请输入更具体的名称重新分析。</p>
       <table className="mt-3 w-full border-collapse text-sm">
         <thead>
-          <tr className="border-b text-left">
-            <th className="py-2">类别</th>
-            <th className="whitespace-nowrap px-1">数量</th>
-            <th>最近设施</th>
-            <th className="hidden sm:table-cell">距离</th>
+          <tr className="border-b-2 border-ink text-left text-xs text-ink-2">
+            <th className="py-2 font-normal">类别</th>
+            <th className="whitespace-nowrap px-2 text-right font-normal">数量</th>
+            <th className="pl-3 font-normal">最近设施</th>
+            <th className="hidden text-right font-normal sm:table-cell">距离</th>
           </tr>
         </thead>
         <tbody>
           {stats.categories.map((c) => (
             <Fragment key={c.key}>
-              <tr className={c.subtypes ? "" : "border-b"}>
-                <td className="py-2">{c.label}</td>
-                <td>{c.capped ? `≥${c.count}` : c.count}</td>
-                <td className="pr-2">
+              <tr className={c.subtypes ? "" : "border-b border-hair"}>
+                <td className="py-3">{c.label}</td>
+                <td className="px-2 text-right font-mono text-2xl leading-none whitespace-nowrap">{c.capped ? `≥${c.count}` : c.count}</td>
+                <td className="pr-2 pl-3">
                   {c.nearest?.name ?? "—"}
                   {c.nearest && <span className="block text-xs text-ink-3 sm:hidden">{c.nearest.distanceM} m</span>}
                 </td>
-                <td className="hidden sm:table-cell">{c.nearest ? `${c.nearest.distanceM} m` : "—"}</td>
+                <td className="hidden text-right font-mono whitespace-nowrap sm:table-cell">{c.nearest ? `${c.nearest.distanceM} m` : "—"}</td>
               </tr>
               {c.subtypes && c.selected && (
-                <tr className="border-b">
-                  <td colSpan={4} className="pb-2">
+                <tr className="border-b border-hair">
+                  <td colSpan={4} className="pb-3">
                     <SubtypePanel
                       key={`${c.key}:${c.selected.join(",")}`}
                       cat={c}
@@ -454,7 +454,7 @@ function StatsTable({
           ))}
         </tbody>
       </table>
-      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-2 text-sm font-medium">✗ {error}</p>}
       <p className="mt-2 text-xs text-ink-3">
         数据来源：{stats.source}，生成于 {new Date(stats.generatedAt).toLocaleString()}。
         数量为高德 POI 点位数，不等于用地性质；地铁按出入口计数；“≥”表示高德返回总数已封顶或没有取全，实际更多。
@@ -493,7 +493,7 @@ function SubtypePanel({ cat, busy, onApply }: { cat: CategoryStat; busy: boolean
           ))}
         {subtypes.every((st) => st.count === 0) && <span>无子类型数据</span>}
       </div>
-      {partial && <p className="mt-1 text-amber-700 dark:text-amber-400">当前口径：仅统计 {selected.join("、")}</p>}
+      {partial && <p className="mt-1 font-medium text-ink">当前口径：仅统计 {selected.join("、")}</p>}
     <details className="mt-1">
       <summary className="inline-flex min-h-11 cursor-pointer select-none items-center underline sm:min-h-0">调整统计口径</summary>
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
@@ -528,17 +528,17 @@ function SubtypePanel({ cat, busy, onApply }: { cat: CategoryStat; busy: boolean
 // 简报展示：未通过数字校验时显示醒目警告；“## ”开头的行渲染为小标题
 function ReportView({ report }: { report: Report }) {
   return (
-    <section className="mt-8">
-      <h2 className="text-lg font-semibold">场地分析简报</h2>
+    <section className="mt-12">
+      <div className="flex items-baseline gap-3 border-t-[3px] border-ink pt-3"><span className="font-mono text-xs">正文</span><h2 className="text-sm font-medium tracking-widest">场地分析简报</h2></div>
       {!report.verified && (
-        <div className="mt-3 rounded border border-red-400 bg-red-50 p-3 text-sm text-red-800">
-          ⚠️ 以下简报有内容未通过校验：{report.violations.join("；")}。这些内容与统计表不符，请勿引用。
+        <div className="mt-3 border-2 border-ink p-3 text-sm font-medium">
+          ✗ 以下简报有内容未通过校验：{report.violations.join("；")}。这些内容与统计表不符，请勿引用。
         </div>
       )}
-      <div className="mt-3 space-y-3 text-sm leading-7">
+      <div className="mt-4 max-w-[42rem] space-y-3 font-serif text-[15px] leading-8">
         {report.text.split("\n").map((line, i) =>
           line.startsWith("## ") ? (
-            <h3 key={i} className="pt-2 font-semibold">
+            <h3 key={i} className="pt-4 font-sans text-sm font-medium tracking-widest">
               {line.slice(3)}
             </h3>
           ) : line.trim() ? (

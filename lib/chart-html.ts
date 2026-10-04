@@ -1,6 +1,7 @@
 // 条形图的 HTML 渲染：纯函数，返回字符串；应用与静态演示页共用同一份
 import { CATEGORIES, FAMILIES, FAMILY_ORDER } from "./palette.ts";
 import type { BarRow } from "./chart-model.ts";
+import { iconSvg } from "./icons.ts";
 
 // 转义 HTML 特殊字符（设施名来自第三方数据，必须转义）
 export function escapeHtml(s: string): string {
@@ -13,7 +14,7 @@ export function renderBarChart(opts: { title: string; note?: string; rows: BarRo
     .map(
       (r) =>
         `<li class="viz-row${r.empty ? " is-empty" : ""}" data-fam="${r.family}" tabindex="0" aria-label="${escapeHtml(r.tip)}">` +
-        `<span class="viz-badge" aria-hidden="true">${escapeHtml(r.glyph)}</span>` +
+        `<span class="viz-badge" aria-hidden="true">${iconSvg(r.key) || escapeHtml(r.glyph)}</span>` +
         `<span class="viz-label">${escapeHtml(r.label)}</span>` +
         `<span class="viz-track"><span class="viz-bar${r.faded ? " is-faded" : ""}" style="width:${r.pct}%"></span></span>` +
         `<span class="viz-value">${escapeHtml(r.valueText)}</span>` +

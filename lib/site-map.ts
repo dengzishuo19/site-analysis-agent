@@ -3,6 +3,7 @@
 // 只使用地图渲染、标记、圆、信息窗，不使用需要“安全密钥”的服务插件。所有文字都用 textContent 写入，避免注入。
 import type { MapModel } from "./map-model.ts";
 import { CLUSTER_MAX_ZOOM, clusterMarkers, type Cluster } from "./map-cluster.ts";
+import { iconSvg } from "./icons.ts";
 
 export type MountOptions = {
   key: string | undefined; // 高德 Web 端（JS API）Key
@@ -89,8 +90,10 @@ export function mountSiteMap(root: HTMLElement, model: MapModel, opts: MountOpti
     const nums = item.markers === item.count ? String(item.markers) : `${item.markers} / ${item.capped ? "≥" : ""}${item.count}`;
     // 宽屏显示完整名称，窄屏显示短名（由 CSS 切换）；读屏与悬停提示始终用完整说明
     btn.setAttribute("aria-label", btn.title);
+    const badge = el("span", "viz-badge");
+    badge.innerHTML = iconSvg(item.key) || item.glyph; // 图标是固定字符串，不含外部数据
     btn.append(
-      el("span", "viz-badge", item.glyph),
+      badge,
       el("span", "viz-lg-full", `${item.label} ${nums}`),
       el("span", "viz-lg-short", `${item.short} ${nums.replace(/ /g, "")}`),
     );
@@ -231,7 +234,8 @@ export function mountSiteMap(root: HTMLElement, model: MapModel, opts: MountOpti
       const clusterEl = (c: Cluster): HTMLElement => {
         const first = c.members[0];
         if (c.categories.length === 1) {
-          const pin = el("div", "viz-pin", first.glyph);
+          const pin = el("div", "viz-pin");
+          pin.innerHTML = iconSvg(first.categoryKey, 15) || first.glyph; // 简笔画图标（固定字符串）
           pin.dataset.fam = first.family;
           if (c.members.length > 1) pin.append(el("span", "viz-count", String(c.members.length)));
           pin.title = c.members.length === 1 ? `${first.name}（${first.category}，${first.distanceM} m）` : `${first.category} ${c.members.length} 处，点击放大`;
@@ -241,7 +245,7 @@ export function mountSiteMap(root: HTMLElement, model: MapModel, opts: MountOpti
         const dots = el("span", "viz-dots");
         for (const k of c.categories.slice(0, 3)) {
           const d = el("span", "viz-dot");
-          d.dataset.fam = legendByKey.get(k)?.family ?? "";
+          d.innerHTML = iconSvg(k, 10); // 簇内含有的类别，用迷你简笔画表示
           dots.append(d);
         }
         box.append(dots);

@@ -12,20 +12,20 @@
 <meta name="description" content="输入北京地址，自动检索周边设施，由大模型撰写场地分析简报，并由代码逐个校验简报中的数字。">
 <style>
   :root {
-    --bg: #fafaf8; --surface: #ffffff; --text: #1c1c1a; --muted: #6b6b66; --line: #e4e4de;
-    --accent: #1f5fbf; --ok: #1a7f4b; --ok-bg: #e8f5ee; --bad: #b3261e; --bad-bg: #fdecea;
-    --code-bg: #f1f1ec;
+    --bg: #fafafa; --surface: #fafafa; --text: #141414; --muted: #6a6a6a; --line: #d4d4d4;
+    --accent: #141414; --ok: #141414; --ok-bg: #efefef; --bad: #141414; --bad-bg: #e2e2e2;
+    --code-bg: #efefef;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #141413; --surface: #1d1d1b; --text: #ecece8; --muted: #9a9a92; --line: #33332f;
-      --accent: #7aa7ff; --ok: #5fd08f; --ok-bg: #16281e; --bad: #ff8a80; --bad-bg: #3a1a18;
-      --code-bg: #262624;
+      --bg: #121212; --surface: #121212; --text: #ececec; --muted: #9a9a9a; --line: #383838;
+      --accent: #ececec; --ok: #ececec; --ok-bg: #1d1d1d; --bad: #ececec; --bad-bg: #2a2a2a;
+      --code-bg: #1d1d1d;
     }
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text); line-height: 1.7;
-    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif; }
+    font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", system-ui, sans-serif; }
   main { max-width: 860px; margin: 0 auto; padding: 32px 16px 64px; }
   h1 { font-size: 26px; margin: 0 0 4px; }
   h2 { font-size: 19px; margin: 40px 0 12px; }
@@ -77,6 +77,18 @@
   .verdicts div { margin: 4px 0; }
   .card > h2 { margin-top: 0; }
   .viz-grid { display: grid; gap: 24px; }
+  /* 派工单 013：杂志/刊物风格（黑白灰）——粗线栏目标题、等宽数字、宋体正文、无圆角卡片 */
+  h1 { font-weight: 500; letter-spacing: -0.3px; }
+  h2 { font-size: 14px; font-weight: 500; letter-spacing: 0.15em; border-top: 3px solid var(--text); padding-top: 10px; }
+  .card { border: 0; border-radius: 0; padding: 0; background: transparent; }
+  .tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; padding: 8px 2px; margin-right: 14px; color: var(--muted); }
+  .tabs button[aria-selected="true"] { outline: 0; border-bottom-color: var(--text); color: var(--text); }
+  th { font-weight: 400; font-size: 12px; border-bottom: 2px solid var(--text); }
+  td.num { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 20px; line-height: 1.1; }
+  .badge { border: 1px solid var(--text); font-weight: 500; }
+  .report p { font-family: "Songti SC", "STSong", "SimSun", "Noto Serif CJK SC", serif; font-size: 15px; line-height: 2; }
+  .steps .n { background: var(--text); }
+  .links a { text-decoration: underline; text-underline-offset: 3px; }
   .subrow td { font-size: 12px; color: var(--muted, #888); padding: 0 8px 8px; border-top: 0; }
 </style>
 <style id="viz-css">
@@ -88,12 +100,15 @@
 [data-fam="green"]{--c:var(--fam-green);--c-ink:var(--fam-green-ink)}
 [data-fam="industry"]{--c:var(--fam-industry);--c-ink:var(--fam-industry-ink)}
 
+.viz [data-fam],.viz-pin,.viz-badge{--c:var(--viz-surface);--c-ink:var(--viz-ink)}
+.viz-bar{background:var(--viz-ink)!important}
+.viz-icon{display:block}
 .viz{color:var(--viz-ink);font-size:14px;line-height:1.5}
 .viz-title{font-weight:600;font-size:14px;margin:0 0 8px}
 .viz-chart{margin:0}
 .viz-rows{list-style:none;margin:0;padding:0}
 .viz-row{position:relative;display:grid;grid-template-columns:22px minmax(84px,190px) 1fr auto;gap:8px;align-items:center;padding:3px 0;outline-offset:2px;border-radius:4px}
-.viz-badge{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font:700 12px/1 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--c);color:var(--c-ink);box-shadow:0 0 0 2px var(--viz-surface)}
+.viz-badge{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;border:1.2px solid var(--viz-ink);box-sizing:border-box;font:700 12px/1 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--c);color:var(--c-ink);box-shadow:0 0 0 2px var(--viz-surface)}
 .viz-label{color:var(--viz-ink-2)}
 .viz-track{height:16px;border-left:1px solid var(--viz-axis)}
 .viz-bar{display:block;height:16px;min-width:3px;background:var(--c);border-radius:0 4px 4px 0}
@@ -123,8 +138,8 @@
 .viz-pin{position:relative}
 .viz-count{position:absolute;top:-7px;right:-9px;min-width:16px;height:16px;padding:0 3px;border-radius:8px;background:var(--viz-ink);color:var(--viz-surface);font:700 10px/16px system-ui,-apple-system,"Segoe UI",sans-serif;text-align:center;box-sizing:border-box}
 .viz-cluster{position:relative;min-width:30px;height:30px;padding:0 6px;border-radius:15px;display:grid;place-items:center;background:var(--viz-ink);color:var(--viz-surface);font:700 13px/1 system-ui,-apple-system,"Segoe UI",sans-serif;border:2px solid var(--viz-surface);box-shadow:0 1px 3px rgba(0,0,0,.4);cursor:pointer;box-sizing:border-box}
-.viz-dots{position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);display:flex;gap:2px}
-.viz-dot{width:8px;height:8px;border-radius:50%;background:var(--c);border:1px solid var(--viz-surface)}
+.viz-dots{position:absolute;bottom:-10px;left:50%;transform:translateX(-50%);display:flex;gap:2px}
+.viz-dot{width:14px;height:14px;border-radius:50%;display:grid;place-items:center;background:var(--viz-surface);color:var(--viz-ink);border:1px solid var(--viz-ink);box-sizing:border-box}
 .viz-info-list{margin:4px 0 0;padding-left:16px;max-height:180px;overflow:auto}
 .viz-center{width:16px;height:16px;border-radius:50%;background:var(--viz-ink);border:3px solid var(--viz-surface);box-shadow:0 1px 3px rgba(0,0,0,.5);box-sizing:border-box}
 .viz-info{padding:2px 4px;font:13px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:#0b0b0b}
@@ -611,7 +626,7 @@ function renderBarChart(opts                                                  ) 
     .map(
       (r) =>
         `<li class="viz-row${r.empty ? " is-empty" : ""}" data-fam="${r.family}" tabindex="0" aria-label="${escapeHtml(r.tip)}">` +
-        `<span class="viz-badge" aria-hidden="true">${escapeHtml(r.glyph)}</span>` +
+        `<span class="viz-badge" aria-hidden="true">${iconSvg(r.key) || escapeHtml(r.glyph)}</span>` +
         `<span class="viz-label">${escapeHtml(r.label)}</span>` +
         `<span class="viz-track"><span class="viz-bar${r.faded ? " is-faded" : ""}" style="width:${r.pct}%"></span></span>` +
         `<span class="viz-value">${escapeHtml(r.valueText)}</span>` +
@@ -725,8 +740,10 @@ function mountSiteMap(root             , model          , opts              )   
     const nums = item.markers === item.count ? String(item.markers) : `${item.markers} / ${item.capped ? "≥" : ""}${item.count}`;
     // 宽屏显示完整名称，窄屏显示短名（由 CSS 切换）；读屏与悬停提示始终用完整说明
     btn.setAttribute("aria-label", btn.title);
+    const badge = el("span", "viz-badge");
+    badge.innerHTML = iconSvg(item.key) || item.glyph; // 图标是固定字符串，不含外部数据
     btn.append(
-      el("span", "viz-badge", item.glyph),
+      badge,
       el("span", "viz-lg-full", `${item.label} ${nums}`),
       el("span", "viz-lg-short", `${item.short} ${nums.replace(/ /g, "")}`),
     );
@@ -867,7 +884,8 @@ function mountSiteMap(root             , model          , opts              )   
       const clusterEl = (c         )              => {
         const first = c.members[0];
         if (c.categories.length === 1) {
-          const pin = el("div", "viz-pin", first.glyph);
+          const pin = el("div", "viz-pin");
+          pin.innerHTML = iconSvg(first.categoryKey, 15) || first.glyph; // 简笔画图标（固定字符串）
           pin.dataset.fam = first.family;
           if (c.members.length > 1) pin.append(el("span", "viz-count", String(c.members.length)));
           pin.title = c.members.length === 1 ? `${first.name}（${first.category}，${first.distanceM} m）` : `${first.category} ${c.members.length} 处，点击放大`;
@@ -877,7 +895,7 @@ function mountSiteMap(root             , model          , opts              )   
         const dots = el("span", "viz-dots");
         for (const k of c.categories.slice(0, 3)) {
           const d = el("span", "viz-dot");
-          d.dataset.fam = legendByKey.get(k)?.family ?? "";
+          d.innerHTML = iconSvg(k, 10); // 簇内含有的类别，用迷你简笔画表示
           dots.append(d);
         }
         box.append(dots);
@@ -1157,8 +1175,7 @@ function renderViz() {
   const { id, stats } = DATA[current];
   $("chartsMount").innerHTML =
     renderBarChart({ title: "各类设施数量", note: "“≥”表示高德返回总数已封顶，实际更多；条形长度相对最大的一类。", rows: countRows(stats) }) +
-    renderBarChart({ title: "最近设施距离", note: "条形越短越近；长度相对检索半径。", rows: distanceRows(stats) }) +
-    renderFamilyKey();
+    renderBarChart({ title: "最近设施距离", note: "条形越短越近；长度相对检索半径。", rows: distanceRows(stats) });
   if (mapHandle) mapHandle.destroy();
   mapHandle = mountSiteMap($("mapMount"), buildMapModel(stats), {
     key: MAP_KEY,

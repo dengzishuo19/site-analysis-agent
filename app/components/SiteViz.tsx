@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { renderBarChart, renderFamilyKey } from "@/lib/chart-html";
+import { renderBarChart } from "@/lib/chart-html";
 import { countRows, distanceRows } from "@/lib/chart-model";
 import { buildMapModel, type VizStats } from "@/lib/map-model";
 import { mountSiteMap } from "@/lib/site-map";
@@ -43,7 +43,6 @@ export function BarCharts({ stats }: { stats: VizStats }) {
       title: "最近设施距离",
       note: "条形越短越近；长度相对检索半径。",
       rows: distanceRows(stats),
-    }) +
-    renderFamilyKey();
+    });
   return <div className="viz space-y-6" dangerouslySetInnerHTML={{ __html: html }} />;
 }

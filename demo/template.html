@@ -12,20 +12,20 @@
 <meta name="description" content="输入北京地址，自动检索周边设施，由大模型撰写场地分析简报，并由代码逐个校验简报中的数字。">
 <style>
   :root {
-    --bg: #fafaf8; --surface: #ffffff; --text: #1c1c1a; --muted: #6b6b66; --line: #e4e4de;
-    --accent: #1f5fbf; --ok: #1a7f4b; --ok-bg: #e8f5ee; --bad: #b3261e; --bad-bg: #fdecea;
-    --code-bg: #f1f1ec;
+    --bg: #fafafa; --surface: #fafafa; --text: #141414; --muted: #6a6a6a; --line: #d4d4d4;
+    --accent: #141414; --ok: #141414; --ok-bg: #efefef; --bad: #141414; --bad-bg: #e2e2e2;
+    --code-bg: #efefef;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #141413; --surface: #1d1d1b; --text: #ecece8; --muted: #9a9a92; --line: #33332f;
-      --accent: #7aa7ff; --ok: #5fd08f; --ok-bg: #16281e; --bad: #ff8a80; --bad-bg: #3a1a18;
-      --code-bg: #262624;
+      --bg: #121212; --surface: #121212; --text: #ececec; --muted: #9a9a9a; --line: #383838;
+      --accent: #ececec; --ok: #ececec; --ok-bg: #1d1d1d; --bad: #ececec; --bad-bg: #2a2a2a;
+      --code-bg: #1d1d1d;
     }
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text); line-height: 1.7;
-    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif; }
+    font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", system-ui, sans-serif; }
   main { max-width: 860px; margin: 0 auto; padding: 32px 16px 64px; }
   h1 { font-size: 26px; margin: 0 0 4px; }
   h2 { font-size: 19px; margin: 40px 0 12px; }
@@ -77,6 +77,18 @@
   .verdicts div { margin: 4px 0; }
   .card > h2 { margin-top: 0; }
   .viz-grid { display: grid; gap: 24px; }
+  /* 派工单 013：杂志/刊物风格（黑白灰）——粗线栏目标题、等宽数字、宋体正文、无圆角卡片 */
+  h1 { font-weight: 500; letter-spacing: -0.3px; }
+  h2 { font-size: 14px; font-weight: 500; letter-spacing: 0.15em; border-top: 3px solid var(--text); padding-top: 10px; }
+  .card { border: 0; border-radius: 0; padding: 0; background: transparent; }
+  .tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; padding: 8px 2px; margin-right: 14px; color: var(--muted); }
+  .tabs button[aria-selected="true"] { outline: 0; border-bottom-color: var(--text); color: var(--text); }
+  th { font-weight: 400; font-size: 12px; border-bottom: 2px solid var(--text); }
+  td.num { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 20px; line-height: 1.1; }
+  .badge { border: 1px solid var(--text); font-weight: 500; }
+  .report p { font-family: "Songti SC", "STSong", "SimSun", "Noto Serif CJK SC", serif; font-size: 15px; line-height: 2; }
+  .steps .n { background: var(--text); }
+  .links a { text-decoration: underline; text-underline-offset: 3px; }
   .subrow td { font-size: 12px; color: var(--muted, #888); padding: 0 8px 8px; border-top: 0; }
 </style>
 <style id="viz-css">
@@ -422,8 +434,7 @@ function renderViz() {
   const { id, stats } = DATA[current];
   $("chartsMount").innerHTML =
     renderBarChart({ title: "各类设施数量", note: "“≥”表示高德返回总数已封顶，实际更多；条形长度相对最大的一类。", rows: countRows(stats) }) +
-    renderBarChart({ title: "最近设施距离", note: "条形越短越近；长度相对检索半径。", rows: distanceRows(stats) }) +
-    renderFamilyKey();
+    renderBarChart({ title: "最近设施距离", note: "条形越短越近；长度相对检索半径。", rows: distanceRows(stats) });
   if (mapHandle) mapHandle.destroy();
   mapHandle = mountSiteMap($("mapMount"), buildMapModel(stats), {
     key: MAP_KEY,

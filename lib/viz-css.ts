@@ -7,12 +7,15 @@ const familyBindings = FAMILY_ORDER.map(
 ).join("\n");
 
 const componentCss = `
+.viz [data-fam],.viz-pin,.viz-badge{--c:var(--viz-surface);--c-ink:var(--viz-ink)}
+.viz-bar{background:var(--viz-ink)!important}
+.viz-icon{display:block}
 .viz{color:var(--viz-ink);font-size:14px;line-height:1.5}
 .viz-title{font-weight:600;font-size:14px;margin:0 0 8px}
 .viz-chart{margin:0}
 .viz-rows{list-style:none;margin:0;padding:0}
 .viz-row{position:relative;display:grid;grid-template-columns:22px minmax(84px,190px) 1fr auto;gap:8px;align-items:center;padding:3px 0;outline-offset:2px;border-radius:4px}
-.viz-badge{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font:700 12px/1 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--c);color:var(--c-ink);box-shadow:0 0 0 2px var(--viz-surface)}
+.viz-badge{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;border:1.2px solid var(--viz-ink);box-sizing:border-box;font:700 12px/1 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--c);color:var(--c-ink);box-shadow:0 0 0 2px var(--viz-surface)}
 .viz-label{color:var(--viz-ink-2)}
 .viz-track{height:16px;border-left:1px solid var(--viz-axis)}
 .viz-bar{display:block;height:16px;min-width:3px;background:var(--c);border-radius:0 4px 4px 0}
@@ -42,8 +45,8 @@ const componentCss = `
 .viz-pin{position:relative}
 .viz-count{position:absolute;top:-7px;right:-9px;min-width:16px;height:16px;padding:0 3px;border-radius:8px;background:var(--viz-ink);color:var(--viz-surface);font:700 10px/16px system-ui,-apple-system,"Segoe UI",sans-serif;text-align:center;box-sizing:border-box}
 .viz-cluster{position:relative;min-width:30px;height:30px;padding:0 6px;border-radius:15px;display:grid;place-items:center;background:var(--viz-ink);color:var(--viz-surface);font:700 13px/1 system-ui,-apple-system,"Segoe UI",sans-serif;border:2px solid var(--viz-surface);box-shadow:0 1px 3px rgba(0,0,0,.4);cursor:pointer;box-sizing:border-box}
-.viz-dots{position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);display:flex;gap:2px}
-.viz-dot{width:8px;height:8px;border-radius:50%;background:var(--c);border:1px solid var(--viz-surface)}
+.viz-dots{position:absolute;bottom:-10px;left:50%;transform:translateX(-50%);display:flex;gap:2px}
+.viz-dot{width:14px;height:14px;border-radius:50%;display:grid;place-items:center;background:var(--viz-surface);color:var(--viz-ink);border:1px solid var(--viz-ink);box-sizing:border-box}
 .viz-info-list{margin:4px 0 0;padding-left:16px;max-height:180px;overflow:auto}
 .viz-center{width:16px;height:16px;border-radius:50%;background:var(--viz-ink);border:3px solid var(--viz-surface);box-shadow:0 1px 3px rgba(0,0,0,.5);box-sizing:border-box}
 .viz-info{padding:2px 4px;font:13px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:#0b0b0b}
