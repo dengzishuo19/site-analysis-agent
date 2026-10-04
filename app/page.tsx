@@ -13,6 +13,7 @@ type CategoryStat = {
   capped: boolean;
   nearest: Poi | null;
   items: Poi[];
+  folded?: number; // 被过滤的噪点数
   // 仅教育、医疗、工业有：子类型分布与当前勾选（pool 是服务端签名数据里的点位池，浏览器只原样带回）
   subtypes?: Subtype[];
   selected?: string[];
@@ -20,6 +21,7 @@ type CategoryStat = {
 };
 type SiteStats = Omit<VizStats, "categories"> & {
   categories: CategoryStat[];
+  expiresAt?: number; // 有签名时存在
   generatedAt: string;
   source: string;
 };
@@ -41,6 +43,8 @@ type Choice = { name: string; district: string; address: string; type: string; p
 type ChoiceSet = { query: string; reason: string; candidates: Choice[] };
 
 const DEMO_URL = "https://dengzishuo19.github.io/site-analysis-agent/";
+const REPO_URL = "https://github.com/dengzishuo19/site-analysis-agent";
+const RULES_URL = `${REPO_URL}/blob/main/docs/testset/review.md`;
 
 type Check = { ok: boolean; result?: unknown; error?: string };
 type Health = { amap: Check; llm: Check };
@@ -211,6 +215,7 @@ export default function Home() {
 
       <VizStyles />
 
+      {stats && <TrustBar stats={stats} report={report} reportLoading={reportLoading} reportStale={reportStale} />}
       {stats && <StatsTable stats={stats} onRefine={refine} busy={refining} error={refineError} />}
 
       {stats && (
@@ -249,8 +254,57 @@ export default function Home() {
         </p>
       )}
 
+      <About />
+
       {process.env.NODE_ENV !== "production" && <HealthCheck />}
     </main>
+  );
+}
+
+// 可信度信息条：只展示后端已有的事实（签名、简报校验结果、过滤数），不新增任何声称
+function TrustBar({ stats, report, reportLoading, reportStale }: { stats: SiteStats; report: Report | null; reportLoading: boolean; reportStale: boolean }) {
+  const folded = stats.categories.reduce((a, c) => a + (c.folded ?? 0), 0);
+  const chip = "rounded-full border border-gray-300 px-3 py-1 dark:border-gray-700";
+  let reportChip: React.ReactNode = null;
+  if (reportStale) reportChip = <span className={chip}>简报待按当前口径重新生成</span>;
+  else if (reportLoading) reportChip = <span className={chip}>… 简报生成中，生成后逐条校验</span>;
+  else if (report?.verified)
+    reportChip = (
+      <span className={`${chip} border-green-300 text-green-800 dark:border-green-800 dark:text-green-300`}>
+        ✓ 简报 {report.coverage.numbers} 个数字已全部核对，其中 {report.coverage.bound} 个与具体设施或类别逐一配对
+      </span>
+    );
+  else if (report) reportChip = <span className={`${chip} border-red-300 text-red-700 dark:border-red-800 dark:text-red-400`}>✗ 简报有内容未通过校验（见下方）</span>;
+
+  return (
+    <div className="mt-6 flex flex-wrap gap-2 text-xs" aria-label="数据可信度">
+      {stats.expiresAt && <span className={chip}>✓ 统计由代码计算，并经服务器签名防篡改</span>}
+      {reportChip}
+      {folded > 0 && (
+        <a href={RULES_URL} target="_blank" rel="noopener noreferrer" className={`${chip} underline-offset-2 hover:underline`}>
+          已过滤 {folded} 个噪点 · 查看规则与度量
+        </a>
+      )}
+    </div>
+  );
+}
+
+// 关于这个项目：只放作者名字与 GitHub 链接
+function About() {
+  return (
+    <footer className="mt-12 border-t border-gray-200 pt-4 text-xs text-gray-500 dark:border-gray-800">
+      <p>
+        场地分析 Agent · 作者：邓子硕 ·{" "}
+        <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className="underline">
+          GitHub 仓库
+        </a>{" "}
+        ·{" "}
+        <a href={DEMO_URL} target="_blank" rel="noopener noreferrer" className="underline">
+          静态演示
+        </a>
+      </p>
+      <p className="mt-1">数据来源：高德开放平台；简报由大模型撰写，数字由代码校验。仅为技术演示，请勿大量访问。</p>
+    </footer>
   );
 }
 
@@ -351,7 +405,7 @@ function StatsTable({
         <thead>
           <tr className="border-b text-left">
             <th className="py-2">类别</th>
-            <th>数量</th>
+            <th className="whitespace-nowrap px-1">数量</th>
             <th>最近设施</th>
             <th className="hidden sm:table-cell">距离</th>
           </tr>
@@ -407,11 +461,25 @@ function SubtypePanel({ cat, busy, onApply }: { cat: CategoryStat; busy: boolean
   }
 
   return (
-    <details className="text-xs text-gray-600">
-      <summary className="cursor-pointer select-none">
-        子类型分解（可自选口径）
-        {partial && <span className="ml-2 text-amber-700">当前口径：仅统计 {selected.join("、")}</span>}
-      </summary>
+    <div className="text-xs text-gray-600 dark:text-gray-400">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {subtypes
+          .filter((st) => st.count > 0)
+          .map((st) => (
+            <span
+              key={st.name}
+              className={`rounded-full border px-2 py-0.5 ${
+                selected.includes(st.name) ? "border-gray-300 dark:border-gray-700" : "border-dashed border-gray-300 opacity-50 dark:border-gray-700"
+              }`}
+            >
+              {st.name} {st.count}
+            </span>
+          ))}
+        {subtypes.every((st) => st.count === 0) && <span>无子类型数据</span>}
+      </div>
+      {partial && <p className="mt-1 text-amber-700 dark:text-amber-400">当前口径：仅统计 {selected.join("、")}</p>}
+    <details className="mt-1">
+      <summary className="inline-flex min-h-11 cursor-pointer select-none items-center underline sm:min-h-0">调整统计口径</summary>
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
         {subtypes.map((st) => (
           <label key={st.name} className="flex items-center gap-1">
@@ -437,6 +505,7 @@ function SubtypePanel({ cat, busy, onApply }: { cat: CategoryStat; busy: boolean
         子类型数量按过滤后取到的点位统计{cat.poolTruncated ? "（该类设施很多，只取到距离最近的一部分，子类型数量是下限）" : ""}。
       </p>
     </details>
+    </div>
   );
 }
 
