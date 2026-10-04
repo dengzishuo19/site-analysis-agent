@@ -173,19 +173,38 @@ export default function Home() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-8 sm:py-8 lg:max-w-5xl">
-      <h1 className="text-2xl font-bold">场地分析 Agent</h1>
-      <p className="mt-2 text-sm text-gray-500">输入北京的一个地址，查看周边 1 km 的设施统计</p>
-      {!stats && !loading && (
-        <ul className="mt-3 space-y-1 text-sm">
-          <li>① 统计由代码计算，不让模型数数</li>
-          <li>② 简报逐条校验，编造的数字会被抓出</li>
-          <li>③ 噪点过滤有人工标注集度量</li>
-        </ul>
+    <main className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-8 sm:py-10 lg:max-w-5xl">
+      {/* 刊头：细线下的刊名与检索范围 */}
+      <div className="flex items-baseline justify-between border-b border-ink pb-2 text-xs text-ink-2">
+        <span className="tracking-widest">场地分析 Agent</span>
+        <span className="font-mono">北京 · 半径 1000 m</span>
+      </div>
+
+      {!stats && !loading ? (
+        <div className="mt-8 grid gap-6 sm:mt-10 lg:grid-cols-[1.6fr_1fr] lg:items-end">
+          <h1 className="text-[2.1rem] leading-[1.15] font-medium tracking-tight sm:text-5xl">
+            一个地址，
+            <br />
+            一份可以核对的
+            <br />
+            场地分析。
+          </h1>
+          <div className="text-sm leading-7 text-ink-2 lg:border-l lg:border-ink lg:pl-5">
+            <p>输入北京的一个地址：代码统计周边 1 km 的 7 类设施，大模型撰写简报，代码逐条核对简报里的每一个数字。</p>
+            <ol className="mt-3 space-y-0.5 text-xs">
+              <li><span className="mr-2 font-mono">01</span>统计由代码计算，不让模型数数</li>
+              <li><span className="mr-2 font-mono">02</span>简报逐条校验，编造的数字会被抓出</li>
+              <li><span className="mr-2 font-mono">03</span>噪点过滤有人工标注集度量</li>
+            </ol>
+          </div>
+        </div>
+      ) : (
+        <h1 className="mt-6 text-2xl font-medium tracking-tight">场地分析 Agent</h1>
       )}
 
+      {/* 输入：杂志式下划线，不用方框 */}
       <form
-        className="mt-6 flex flex-col gap-2 sm:flex-row"
+        className="mt-8 flex items-stretch border-b-2 border-ink"
         onSubmit={(e) => {
           e.preventDefault();
           analyze();
@@ -194,16 +213,13 @@ export default function Home() {
         <input
           value={address}
           onChange={(e) => setAddress(e.target.value)}
-          placeholder="例如：北京市朝阳区国贸地铁站"
+          placeholder="输入北京地址，如：国贸地铁站"
+          aria-label="北京地址"
           maxLength={60}
-          className="min-h-11 flex-1 rounded border px-3 py-2"
+          className="min-h-12 min-w-0 flex-1 bg-transparent px-0 text-base outline-none placeholder:text-ink-3"
         />
-        <button
-          type="submit"
-          disabled={loading}
-          className="min-h-11 rounded bg-black px-4 py-2 text-white disabled:opacity-50 dark:bg-white dark:text-black"
-        >
-          {loading ? "分析中…" : "分析"}
+        <button type="submit" disabled={loading} className="min-h-12 shrink-0 pl-4 text-sm tracking-[0.2em] disabled:opacity-50">
+          {loading ? "分析中…" : "分析 →"}
         </button>
       </form>
 
@@ -239,7 +255,7 @@ export default function Home() {
           </button>
         </p>
       )}
-      {reportLoading && <p className="mt-6 text-sm text-gray-500">简报生成中…（约 20–40 秒）</p>}
+      {reportLoading && <p className="mt-6 text-sm text-ink-3">简报生成中…（约 20–40 秒）</p>}
       {reportError && <ErrorNote problem={reportError} className="mt-6" />}
       {report && <ReportView report={report} />}
 
@@ -264,7 +280,7 @@ export default function Home() {
 // 可信度信息条：只展示后端已有的事实（签名、简报校验结果、过滤数），不新增任何声称
 function TrustBar({ stats, report, reportLoading, reportStale }: { stats: SiteStats; report: Report | null; reportLoading: boolean; reportStale: boolean }) {
   const folded = stats.categories.reduce((a, c) => a + (c.folded ?? 0), 0);
-  const chip = "rounded-full border border-gray-300 px-3 py-1 dark:border-gray-700";
+  const chip = "rounded-full border border-hair px-3 py-1";
   let reportChip: React.ReactNode = null;
   if (reportStale) reportChip = <span className={chip}>简报待按当前口径重新生成</span>;
   else if (reportLoading) reportChip = <span className={chip}>… 简报生成中，生成后逐条校验</span>;
@@ -292,7 +308,7 @@ function TrustBar({ stats, report, reportLoading, reportStale }: { stats: SiteSt
 // 关于这个项目：只放作者名字与 GitHub 链接
 function About() {
   return (
-    <footer className="mt-12 border-t border-gray-200 pt-4 text-xs text-gray-500 dark:border-gray-800">
+    <footer className="mt-12 border-t border-hair pt-4 text-xs text-ink-3">
       <p>
         场地分析 Agent · 作者：邓子硕 ·{" "}
         <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className="underline">
@@ -324,12 +340,12 @@ function LoadingSteps() {
     <div className="mt-4 text-sm" role="status">
       <ol className="space-y-1">
         {steps.map((t, i) => (
-          <li key={t} className={i === at ? "font-medium" : i < at ? "text-gray-500" : "text-gray-400"}>
+          <li key={t} className={i === at ? "font-medium" : i < at ? "text-ink-3" : "text-ink-3"}>
             {i < at ? "✓" : i === at ? "…" : "·"} {t}
           </li>
         ))}
       </ol>
-      <p className="mt-1 text-xs text-gray-500">通常需要 10 到 15 秒（上面的步骤是估计，不是实时进度）。</p>
+      <p className="mt-1 text-xs text-ink-3">通常需要 10 到 15 秒（上面的步骤是估计，不是实时进度）。</p>
     </div>
   );
 }
@@ -370,7 +386,7 @@ function ChoiceList({ choices, onPick, disabled }: { choices: ChoiceSet; onPick:
               className="w-full rounded border px-3 py-2 text-left text-sm hover:bg-gray-100 disabled:opacity-50 dark:hover:bg-gray-800"
             >
               <span className="font-medium">{c.name}</span>
-              <span className="block text-xs text-gray-500">
+              <span className="block text-xs text-ink-3">
                 {[c.district, c.address].filter(Boolean).join(" · ")}
                 {c.type ? `　｜　${c.type}` : ""}
               </span>
@@ -378,7 +394,7 @@ function ChoiceList({ choices, onPick, disabled }: { choices: ChoiceSet; onPick:
           </li>
         ))}
       </ul>
-      <p className="mt-3 text-xs text-gray-500">都不是？请在上面输入更具体的名称（例如加上“西城校区”）后重新分析。</p>
+      <p className="mt-3 text-xs text-ink-3">都不是？请在上面输入更具体的名称（例如加上“西城校区”）后重新分析。</p>
     </section>
   );
 }
@@ -400,7 +416,7 @@ function StatsTable({
       <p className="text-sm">
         定位：{stats.center.address}（{stats.center.lng}, {stats.center.lat}），半径 {stats.radius} m
       </p>
-      <p className="mt-1 text-xs text-gray-500">如果这不是你要找的地点，请输入更具体的名称重新分析。</p>
+      <p className="mt-1 text-xs text-ink-3">如果这不是你要找的地点，请输入更具体的名称重新分析。</p>
       <table className="mt-3 w-full border-collapse text-sm">
         <thead>
           <tr className="border-b text-left">
@@ -418,7 +434,7 @@ function StatsTable({
                 <td>{c.capped ? `≥${c.count}` : c.count}</td>
                 <td className="pr-2">
                   {c.nearest?.name ?? "—"}
-                  {c.nearest && <span className="block text-xs text-gray-500 sm:hidden">{c.nearest.distanceM} m</span>}
+                  {c.nearest && <span className="block text-xs text-ink-3 sm:hidden">{c.nearest.distanceM} m</span>}
                 </td>
                 <td className="hidden sm:table-cell">{c.nearest ? `${c.nearest.distanceM} m` : "—"}</td>
               </tr>
@@ -439,7 +455,7 @@ function StatsTable({
         </tbody>
       </table>
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-      <p className="mt-2 text-xs text-gray-500">
+      <p className="mt-2 text-xs text-ink-3">
         数据来源：{stats.source}，生成于 {new Date(stats.generatedAt).toLocaleString()}。
         数量为高德 POI 点位数，不等于用地性质；地铁按出入口计数；“≥”表示高德返回总数已封顶或没有取全，实际更多。
         教育、医疗、工业已折叠校内院系、院内科室并剔除培训机构、党校、药店等不属于该类别的点位。
@@ -461,7 +477,7 @@ function SubtypePanel({ cat, busy, onApply }: { cat: CategoryStat; busy: boolean
   }
 
   return (
-    <div className="text-xs text-gray-600 dark:text-gray-400">
+    <div className="text-xs text-ink-2">
       <div className="flex flex-wrap items-center gap-1.5">
         {subtypes
           .filter((st) => st.count > 0)
@@ -469,7 +485,7 @@ function SubtypePanel({ cat, busy, onApply }: { cat: CategoryStat; busy: boolean
             <span
               key={st.name}
               className={`rounded-full border px-2 py-0.5 ${
-                selected.includes(st.name) ? "border-gray-300 dark:border-gray-700" : "border-dashed border-gray-300 opacity-50 dark:border-gray-700"
+                selected.includes(st.name) ? "border-hair" : "border-dashed border-hair opacity-50"
               }`}
             >
               {st.name} {st.count}
@@ -501,7 +517,7 @@ function SubtypePanel({ cat, busy, onApply }: { cat: CategoryStat; busy: boolean
           </button>
         )}
       </div>
-      <p className="mt-1 text-gray-500">
+      <p className="mt-1 text-ink-3">
         子类型数量按过滤后取到的点位统计{cat.poolTruncated ? "（该类设施很多，只取到距离最近的一部分，子类型数量是下限）" : ""}。
       </p>
     </details>
@@ -530,7 +546,7 @@ function ReportView({ report }: { report: Report }) {
           ) : null,
         )}
       </div>
-      <p className="mt-3 text-xs text-gray-500">
+      <p className="mt-3 text-xs text-ink-3">
         由 {report.model} 生成，校验：{report.verified ? "通过" : "未通过"}（生成 {report.attempts} 次；
         简报中 {report.coverage.numbers} 个数字里有 {report.coverage.bound} 个已与统计表逐项配对核对，其余仅核对是否出现在统计表中）。
         简报仅基于上方统计表，请以统计表为准。
@@ -554,7 +570,7 @@ function HealthCheck() {
   }
 
   return (
-    <details className="mt-10 text-sm text-gray-600">
+    <details className="mt-10 text-sm text-ink-2">
       <summary className="cursor-pointer">接口连通性检查（调试用）</summary>
       <button
         onClick={runTest}
