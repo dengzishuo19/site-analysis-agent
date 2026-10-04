@@ -28,7 +28,7 @@ function leadOf(ex: Example): Cat {
 
 const num = (c: Cat) => (c.capped ? `≥${c.count}` : String(c.count));
 
-// 首页内置示例：不请求任何接口，数据来自导出脚本生成的精简文件；地图是事先生成的高德静态地图，转为灰度
+// 首页内置示例：不请求任何接口，数据来自导出脚本生成的精简文件；地图是事先生成的高德静态地图（保留彩色底图：水系、绿地是场地分析的重要信息）
 export function HomeExample({ onAnalyze, demoUrl, disabled }: { onAnalyze: (address: string) => void; demoUrl: string; disabled: boolean }) {
   const [id, setId] = useState(examples.find((e) => e.id === "bucea")?.id ?? examples[0].id);
   const ex: Example = examples.find((e) => e.id === id) ?? examples[0];
@@ -85,11 +85,11 @@ export function HomeExample({ onAnalyze, demoUrl, disabled }: { onAnalyze: (addr
             alt={`${ex.title}周边设施地图（示例）`}
             width={1000}
             height={640}
-            className="aspect-[25/16] w-full border border-hair object-cover grayscale dark:invert"
+            className="aspect-[25/16] w-full border border-hair object-cover dark:brightness-90"
           />
           <figcaption className="mt-2 text-xs text-ink-2">
             <span className="mr-2 font-mono">图 1</span>
-            {ex.title}周边设施分布（示例，灰度）。虚线圆为 1 km 检索范围。
+            {ex.title}周边设施分布（示例）。圆为 1 km 检索范围；底图的蓝色为水系、绿色为绿地。
           </figcaption>
         </figure>
       </div>
