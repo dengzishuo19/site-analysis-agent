@@ -34,7 +34,8 @@ for (const c of CASES) {
   // 去掉签名字段；设施保留名称、距离与坐标（地图标记需要坐标，均为高德公开的 POI 数据）
   delete stats.signature;
   delete stats.expiresAt;
-  stats.categories = stats.categories.map((cat) => ({
+  stats.categories = stats.categories.map(({ pool, poolTruncated, base, ...cat }) => ({
+    // 点位池只用于线上版的勾选重算，静态演示页不需要，去掉以减小体积；保留子类型分布供只读展示
     ...cat,
     nearest: cat.nearest && { name: cat.nearest.name, distanceM: cat.nearest.distanceM },
     items: cat.items.map((p) => ({ name: p.name, distanceM: p.distanceM, lng: p.lng, lat: p.lat })),

@@ -1,6 +1,7 @@
 // 简报生成：大模型只负责写作，数字是否合规由 verify.ts（纯代码）裁决
 import { chat, modelName } from "@/lib/llm";
 import type { SiteStats } from "@/lib/stats";
+import { isFullSelection } from "@/lib/subtype";
 import { verifyReport, type Issue } from "@/lib/verify";
 
 export type Report = {
@@ -25,6 +26,7 @@ const SYSTEM_PROMPT = `你是城市设计研究助理，为建筑与城市设计
 7. 每个类别只列举距离最近的少数几处设施，其余不逐一罗列。简报中不要写出列举的具体条数，也不要复述这些写作规则。
 8. 只陈述数据本身，不得推断设施之间的功能关系、步行可达性、场地功能混合程度或规划意图；不得使用数据字段名（如 capped、count），一律用中文表述。
 9. 句式固定，以便校验：陈述类别时写“<类别完整名称>共 N 处，最近为「设施名称」，距离 D m”，类别完整名称必须与数据中的 label 完全一致（如“教育（学校）”“地铁站出入口”）；列举其他设施时写“「设施名称」距离 D m”，名称与距离必须成对出现且来自数据中的同一条记录；数量为 0 时写“<类别完整名称>范围内未检索到”；封顶类别写“<类别完整名称>不少于 N 处”。
+10. 若某类别带有“口径”字段，表示使用者只统计了该类别的部分子类型：必须在“数据局限”小节写明该类别的统计口径（如“教育（学校）仅统计小学、幼儿园”），并不得把该类别的数量说成全部同类设施的数量。
 
 【格式】
 - 使用以下五个小标题，每个小标题单独一行，以“## ”开头，不加数字编号：## 场地概况、## 交通可达性、## 公共服务与商业、## 环境与潜在影响、## 数据局限。
@@ -41,6 +43,7 @@ function toPromptData(stats: SiteStats) {
       label: c.label,
       count: c.count,
       capped: c.capped,
+      ...(c.selected && !isFullSelection(c.key, c.selected) ? { 口径: `仅统计：${c.selected.join("、")}` } : {}),
       nearest: c.nearest ? { name: c.nearest.name, distanceM: c.nearest.distanceM } : null,
       items: c.items.map((p) => ({ name: p.name, distanceM: p.distanceM })),
     })),

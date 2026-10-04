@@ -4,6 +4,9 @@
 import type { Poi } from "@/lib/amap";
 import { baseName, isIndependentBranch, misclassifiedReason, typePart } from "./poi-rules.ts";
 
+// 过滤后留下的点位：带上高德类型，便于后续划分子类型
+export type TypedPoi = Poi & { type: string };
+
 // 周边搜索返回的原始点位（含 id 与 parent）
 export type AroundPoi = Poi & { id: string; type: string; parent: string };
 
@@ -43,10 +46,10 @@ export function foldSubUnits(
   parents: Map<string, ParentInfo>,
   center: { lng: number; lat: number },
   radius: number,
-): { pois: Poi[]; folded: number; keptIds: Set<string> } {
+): { pois: TypedPoi[]; folded: number; keptIds: Set<string> } {
   const ids = new Set(pois.map((p) => p.id));
-  const kept: Poi[] = [];
-  const keptById = new Map<string, Poi>();
+  const kept: TypedPoi[] = [];
+  const keptById = new Map<string, TypedPoi>();
   const keptIds = new Set<string>(); // 以自身身份留在结果里的原始点位（被合并成父级的子点位不在其中）
   const closestChild = new Map<string, AroundPoi>(); // 父级在结果里时，其子点位中离场地最近的一个
   const groups = new Map<string, AroundPoi[]>();
@@ -96,8 +99,8 @@ export function foldSubUnits(
     const d = Math.round(haversineM(center, par));
     kept.push(
       d <= radius && d < nearest.distanceM
-        ? { name: par.name, distanceM: d, lng: par.lng, lat: par.lat }
-        : { name: par.name, distanceM: nearest.distanceM, lng: nearest.lng, lat: nearest.lat },
+        ? { name: par.name, distanceM: d, lng: par.lng, lat: par.lat, type: par.type }
+        : { name: par.name, distanceM: nearest.distanceM, lng: nearest.lng, lat: nearest.lat, type: par.type },
     );
     folded += children.length - 1; // 多个子点位合成一个
   }
@@ -106,8 +109,8 @@ export function foldSubUnits(
   return { pois: kept, folded, keptIds };
 }
 
-function toPoi(p: AroundPoi): Poi {
-  return { name: p.name, distanceM: p.distanceM, lng: p.lng, lat: p.lat };
+function toPoi(p: AroundPoi): TypedPoi {
+  return { name: p.name, distanceM: p.distanceM, lng: p.lng, lat: p.lat, type: p.type };
 }
 
 // 完整的过滤流程：
@@ -121,7 +124,7 @@ export function filterPois(
   center: { lng: number; lat: number },
   radius: number,
   category: string,
-): { pois: Poi[]; folded: number; removed: number; keptIds: Set<string> } {
+): { pois: TypedPoi[]; folded: number; removed: number; keptIds: Set<string> } {
   const removedIds = new Set<string>();
   for (const p of pois) {
     if (misclassifiedReason(p, category, parents.get(p.parent)?.type)) removedIds.add(p.id);

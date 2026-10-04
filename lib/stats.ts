@@ -1,6 +1,7 @@
 // 场地周边设施统计：全部由代码计算，不调用大模型
 import { geocode, getPoiDetails, searchAroundRaw, type Poi } from "@/lib/amap";
 import { filterPois, parentIdsToResolve } from "@/lib/poi-filter";
+import { SUBTYPES, countSubtypes, hasSubtypes, subtypeOf, type PoolPoi, type SubtypeCount } from "@/lib/subtype";
 
 // ===== 可调参数 =====
 export const RADIUS_M = 1000; // 检索半径（米）
@@ -27,6 +28,12 @@ export type CategoryStat = {
   nearest: Poi | null;
   items: Poi[];
   folded: number; // 被过滤的点位数量：校内/院内子点位与类别归错的点位（已从 count 与 items 中剔除）
+  // 以下仅教育、医疗、工业有：子类型分解与使用者的勾选口径（count/items/nearest 反映当前勾选）
+  pool?: PoolPoi[]; // 过滤后取到的全部点位（最多 75 条），带子类型；重算勾选口径只用它，不再访问高德
+  poolTruncated?: boolean; // 点位池是否不完整（高德返回的点位多于取到的）
+  subtypes?: SubtypeCount[]; // 子类型分布（按点位池计）
+  selected?: string[]; // 当前勾选的子类型；默认全选
+  base?: { count: number; capped: boolean }; // 默认口径（全选）下的数量，全选时沿用
 };
 
 export type SiteStats = {
@@ -39,35 +46,48 @@ export type SiteStats = {
 
 // 检索一个类别并折叠噪点。
 // 只取前几页：若没取完且确实折叠过，过滤后的数量只是下限（capped）；没折叠过则沿用高德给的总数
-async function searchCategory(center: { lng: number; lat: number }, cat: { key: string; types: string; fold: boolean }, topN: number) {
+async function searchCategory(center: { lng: number; lat: number }, cat: { key: string; types: string; fold: boolean }) {
   const { total, pois: raw, exhausted } = await searchAroundRaw(center, cat.types, RADIUS_M);
   const parentIds = cat.fold ? parentIdsToResolve(raw) : [];
   const parents = new Map((parentIds.length ? await getPoiDetails(parentIds) : []).map((p) => [p.id, p]));
   const { pois, folded } = cat.fold
     ? (({ pois, folded, removed }) => ({ pois, folded: folded + removed }))(filterPois(raw, parents, center, RADIUS_M, cat.key))
-    : { pois: raw.map(({ name, distanceM, lng, lat }) => ({ name, distanceM, lng, lat })), folded: 0 };
+    : { pois: raw.map(({ name, distanceM, lng, lat, type }) => ({ name, distanceM, lng, lat, type })).sort((a, b) => a.distanceM - b.distanceM), folded: 0 };
   const truncated = !exhausted;
   return {
     count: truncated && folded === 0 ? total : pois.length,
-    pois: pois.slice(0, topN),
+    pois, // 过滤后的全部点位（含 type，供划分子类型）；截取前 N 条由调用方负责
     folded: { count: folded, truncated },
   };
 }
+
+const plain = ({ name, distanceM, lng, lat }: Poi) => ({ name, distanceM, lng, lat });
 
 // 对一个已定位的中心点做周边设施统计（各类别依次请求，避免触发频率限制）
 export async function analyzeCenter(center: { address: string; lng: number; lat: number }): Promise<SiteStats> {
   const categories: CategoryStat[] = [];
   for (const cat of CATEGORIES) {
-    const { count, pois, folded } = await searchCategory(center, cat, cat.key === "metro" ? TOP_N_METRO : TOP_N);
-    categories.push({
+    const { count, pois, folded } = await searchCategory(center, cat);
+    const topN = cat.key === "metro" ? TOP_N_METRO : TOP_N;
+    const capped = count >= COUNT_CAP || (folded.truncated && folded.count > 0);
+    const stat: CategoryStat = {
       key: cat.key,
       label: cat.label,
       count,
-      capped: count >= COUNT_CAP || (folded.truncated && folded.count > 0),
-      nearest: pois[0] ?? null,
-      items: pois,
+      capped,
+      nearest: pois[0] ? plain(pois[0]) : null,
+      items: pois.slice(0, topN).map(plain),
       folded: folded.count,
-    });
+    };
+    if (hasSubtypes(cat.key)) {
+      const pool: PoolPoi[] = pois.map((p) => ({ ...plain(p), sub: subtypeOf(cat.key, p.type, p.name) }));
+      stat.pool = pool;
+      stat.poolTruncated = folded.truncated;
+      stat.subtypes = countSubtypes(cat.key, pool);
+      stat.selected = [...SUBTYPES[cat.key]];
+      stat.base = { count, capped };
+    }
+    categories.push(stat);
     await new Promise((r) => setTimeout(r, 350));
   }
 

@@ -1,11 +1,23 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { Fragment, useRef, useState } from "react";
 import { BarCharts, SiteMap, VizStyles, type VizStats } from "./components/SiteViz";
 
 type Poi = { name: string; distanceM: number; lng: number; lat: number };
-type CategoryStat = { key: string; label: string; count: number; capped: boolean; nearest: Poi | null; items: Poi[] };
-type SiteStats = VizStats & {
+type Subtype = { name: string; count: number };
+type CategoryStat = {
+  key: string;
+  label: string;
+  count: number;
+  capped: boolean;
+  nearest: Poi | null;
+  items: Poi[];
+  // 仅教育、医疗、工业有：子类型分布与当前勾选（pool 是服务端签名数据里的点位池，浏览器只原样带回）
+  subtypes?: Subtype[];
+  selected?: string[];
+  poolTruncated?: boolean;
+};
+type SiteStats = Omit<VizStats, "categories"> & {
   categories: CategoryStat[];
   generatedAt: string;
   source: string;
@@ -42,6 +54,9 @@ export default function Home() {
   const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState<Problem | null>(null);
   const [choices, setChoices] = useState<ChoiceSet | null>(null);
+  const [refining, setRefining] = useState(false);
+  const [refineError, setRefineError] = useState<string | null>(null);
+  const [reportStale, setReportStale] = useState(false); // 口径变了，已生成的简报对不上当前数字
   const runId = useRef(0); // 防止旧请求的结果覆盖新请求
 
   // 根据统计数据请求大模型简报
@@ -73,6 +88,8 @@ export default function Home() {
     setReport(null);
     setReportError(null);
     setReportLoading(false);
+    setReportStale(false);
+    setRefineError(null);
     try {
       const res = await fetch(url);
       const data = await res.json();
@@ -92,6 +109,43 @@ export default function Home() {
     } finally {
       if (id === runId.current) setLoading(false);
     }
+  }
+
+  // 勾选子类型：服务端用已签名的点位池重算并重新签名；成功后数字、地图、图表随之更新，旧简报标为过期
+  async function refine(selection: Record<string, string[]>) {
+    if (!stats) return;
+    setRefining(true);
+    setRefineError(null);
+    try {
+      const res = await fetch("/api/site/refine", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stats, selection }),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setRefineError(body.error ?? "口径调整失败");
+      } else {
+        setStats(body);
+        if (report || reportLoading) {
+          setReport(null);
+          setReportLoading(false);
+          runId.current++; // 作废正在进行的简报请求
+          setReportStale(true);
+        }
+      }
+    } catch {
+      setRefineError("无法访问服务，口径调整失败");
+    } finally {
+      setRefining(false);
+    }
+  }
+
+  function regenerateReport() {
+    if (!stats) return;
+    setReportStale(false);
+    setReportError(null);
+    fetchReport(stats, runId.current);
   }
 
   function analyze() {
@@ -138,7 +192,7 @@ export default function Home() {
 
       <VizStyles />
 
-      {stats && <StatsTable stats={stats} />}
+      {stats && <StatsTable stats={stats} onRefine={refine} busy={refining} error={refineError} />}
 
       {stats && (
         <section className="mt-8">
@@ -154,6 +208,14 @@ export default function Home() {
         </section>
       )}
 
+      {reportStale && (
+        <p className="mt-6 text-sm text-amber-700">
+          统计口径已改变，之前的简报已作废。{" "}
+          <button type="button" onClick={regenerateReport} className="underline">
+            按当前口径重新生成简报
+          </button>
+        </p>
+      )}
       {reportLoading && <p className="mt-6 text-sm text-gray-500">简报生成中…（约 20–40 秒）</p>}
       {reportError && <ErrorNote problem={reportError} className="mt-6" />}
       {report && <ReportView report={report} />}
@@ -212,8 +274,18 @@ function ChoiceList({ choices, onPick, disabled }: { choices: ChoiceSet; onPick:
   );
 }
 
-// 统计结果表格：各类设施的数量与最近设施
-function StatsTable({ stats }: { stats: SiteStats }) {
+// 统计结果表格：各类设施的数量与最近设施；教育、医疗、工业可展开子类型，自选统计口径
+function StatsTable({
+  stats,
+  onRefine,
+  busy,
+  error,
+}: {
+  stats: SiteStats;
+  onRefine: (selection: Record<string, string[]>) => void;
+  busy: boolean;
+  error: string | null;
+}) {
   return (
     <section className="mt-6">
       <p className="text-sm">
@@ -231,20 +303,82 @@ function StatsTable({ stats }: { stats: SiteStats }) {
         </thead>
         <tbody>
           {stats.categories.map((c) => (
-            <tr key={c.key} className="border-b">
-              <td className="py-2">{c.label}</td>
-              <td>{c.capped ? `≥${c.count}` : c.count}</td>
-              <td>{c.nearest?.name ?? "—"}</td>
-              <td>{c.nearest ? `${c.nearest.distanceM} m` : "—"}</td>
-            </tr>
+            <Fragment key={c.key}>
+              <tr className={c.subtypes ? "" : "border-b"}>
+                <td className="py-2">{c.label}</td>
+                <td>{c.capped ? `≥${c.count}` : c.count}</td>
+                <td>{c.nearest?.name ?? "—"}</td>
+                <td>{c.nearest ? `${c.nearest.distanceM} m` : "—"}</td>
+              </tr>
+              {c.subtypes && c.selected && (
+                <tr className="border-b">
+                  <td colSpan={4} className="pb-2">
+                    <SubtypePanel
+                      key={`${c.key}:${c.selected.join(",")}`}
+                      cat={c}
+                      busy={busy}
+                      onApply={(sel) => onRefine({ [c.key]: sel })}
+                    />
+                  </td>
+                </tr>
+              )}
+            </Fragment>
           ))}
         </tbody>
       </table>
+      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
       <p className="mt-2 text-xs text-gray-500">
         数据来源：{stats.source}，生成于 {new Date(stats.generatedAt).toLocaleString()}。
-        数量为高德 POI 点位数，不等于用地性质；地铁按出入口计数；“≥”表示高德返回总数已封顶，实际更多。
+        数量为高德 POI 点位数，不等于用地性质；地铁按出入口计数；“≥”表示高德返回总数已封顶或没有取全，实际更多。
+        教育、医疗、工业已折叠校内院系、院内科室并剔除培训机构、党校、药店等不属于该类别的点位。
       </p>
     </section>
+  );
+}
+
+// 子类型面板：默认全选（与上面的大类数字一致）；勾选后点“应用口径”，由服务端重算
+function SubtypePanel({ cat, busy, onApply }: { cat: CategoryStat; busy: boolean; onApply: (sel: string[]) => void }) {
+  const subtypes = cat.subtypes ?? [];
+  const selected = cat.selected ?? [];
+  const [draft, setDraft] = useState<string[]>(selected);
+  const changed = draft.length !== selected.length || draft.some((d) => !selected.includes(d));
+  const partial = selected.length < subtypes.length;
+
+  function toggle(name: string) {
+    setDraft((d) => (d.includes(name) ? d.filter((x) => x !== name) : [...d, name]));
+  }
+
+  return (
+    <details className="text-xs text-gray-600">
+      <summary className="cursor-pointer select-none">
+        子类型分解（可自选口径）
+        {partial && <span className="ml-2 text-amber-700">当前口径：仅统计 {selected.join("、")}</span>}
+      </summary>
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+        {subtypes.map((st) => (
+          <label key={st.name} className="flex items-center gap-1">
+            <input type="checkbox" checked={draft.includes(st.name)} onChange={() => toggle(st.name)} disabled={busy} />
+            {st.name} {st.count}
+          </label>
+        ))}
+        <button
+          type="button"
+          disabled={busy || !changed || draft.length === 0}
+          onClick={() => onApply(draft)}
+          className="rounded border px-2 py-0.5 disabled:opacity-40"
+        >
+          {busy ? "计算中…" : "应用口径"}
+        </button>
+        {partial && (
+          <button type="button" disabled={busy} onClick={() => onApply(subtypes.map((st) => st.name))} className="underline disabled:opacity-40">
+            恢复全选
+          </button>
+        )}
+      </div>
+      <p className="mt-1 text-gray-500">
+        子类型数量按过滤后取到的点位统计{cat.poolTruncated ? "（该类设施很多，只取到距离最近的一部分，子类型数量是下限）" : ""}。
+      </p>
+    </details>
   );
 }
 

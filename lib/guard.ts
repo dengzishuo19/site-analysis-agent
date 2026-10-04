@@ -1,7 +1,7 @@
 // 接口防护：把限流接到请求上（仅服务端使用）
 import { configFromEnv, createLimiter } from "@/lib/rate-limit";
 
-export type Endpoint = "site" | "report";
+export type Endpoint = "site" | "report" | "refine";
 
 // 每个接口一个独立的限流器，挂在 globalThis 上以免开发热更新时被重置
 const g = globalThis as unknown as { __limiters?: Record<Endpoint, ReturnType<typeof createLimiter>> };
@@ -9,6 +9,8 @@ function limiters() {
   g.__limiters ??= {
     site: createLimiter(configFromEnv(process.env)),
     report: createLimiter(configFromEnv(process.env)),
+    // 勾选子类型不访问高德和大模型，只做内存计算，额度放宽（仍有上限防刷）
+    refine: createLimiter({ perMinute: 30, perDay: 300, globalPerDay: 3000 }),
   };
   return g.__limiters;
 }

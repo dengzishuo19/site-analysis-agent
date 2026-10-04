@@ -42,3 +42,18 @@ test("当前规则：误杀不超过 1，漏网不超过 16", () => {
   assert.ok(m.killed.length <= 1, `误杀 ${m.killed.length}：${m.killed.map((r) => r.name).join("、")}`);
   assert.ok(m.missed.length <= 16, `漏网 ${m.missed.length}：${m.missed.map((r) => r.name).join("、")}`);
 });
+
+// 子类型：教育、工业中“应保留”的点位已人工核对子类型（见 docs/testset，47 + 26 个，核对为全部正确）。
+// 注意：核对者与规则作者是同一方，且测试集里“学校”泛类的保留点位很少；名称细分规则另由 subtype.test.ts 覆盖。
+test("子类型：测试集中人工核对过的教育、工业点位全部判对", async () => {
+  const { subtypeOf } = await import("./subtype.ts");
+  let checked = 0;
+  for (const g of groups) {
+    for (const r of g.pois as (typeof g.pois[number] & { sub?: string })[]) {
+      if (r.label !== "K" || r.sub === undefined) continue;
+      checked++;
+      assert.equal(subtypeOf(g.category, r.type, r.name), r.sub, `${g.siteName}/${r.name}`);
+    }
+  }
+  assert.equal(checked, 73);
+});

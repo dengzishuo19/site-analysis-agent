@@ -72,6 +72,7 @@
   .verdicts div { margin: 4px 0; }
   .card > h2 { margin-top: 0; }
   .viz-grid { display: grid; gap: 24px; }
+  .subrow td { font-size: 12px; color: var(--muted, #888); padding: 0 8px 8px; border-top: 0; }
 </style>
 <style id="viz-css">
 /*__VIZ_CSS__*/
@@ -391,7 +392,8 @@ function renderCase() {
   $("centerLine").textContent = `定位：${stats.center.address}（${stats.center.lng}, ${stats.center.lat}），半径 ${stats.radius} m`;
   $("statsBody").innerHTML = stats.categories.map((c) =>
     `<tr><td>${esc(c.label)}</td><td class="num">${c.capped ? "≥" + c.count : c.count}</td>` +
-    `<td>${c.nearest ? esc(c.nearest.name) : "—"}</td><td class="num">${c.nearest ? c.nearest.distanceM + " m" : "—"}</td></tr>`
+    `<td>${c.nearest ? esc(c.nearest.name) : "—"}</td><td class="num">${c.nearest ? c.nearest.distanceM + " m" : "—"}</td></tr>` +
+    (c.subtypes ? `<tr class="subrow"><td colspan="4">子类型分解：${c.subtypes.filter((s) => s.count > 0).map((s) => esc(s.name) + " " + s.count).join("、") || "—"}${c.subtypes.reduce((a, s) => a + s.count, 0) < c.count ? "（该类设施很多，只取到距离最近的一部分，子类型数量为下限）" : ""}。线上版可自选口径。</td></tr>` : "")
   ).join("");
 
   $("verifyBadge").innerHTML = report.verified

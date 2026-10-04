@@ -5,7 +5,7 @@ import type { SiteStats } from "@/lib/stats";
 
 export const maxDuration = 120; // 最多两次大模型调用
 
-const MAX_BODY_BYTES = 100_000; // 统计数据通常不足 20 KB
+const MAX_BODY_BYTES = 250_000; // 带点位池的统计数据约几十 KB
 
 // 去掉错误信息里可能出现的 Key，防止泄露到前端
 function safeMessage(err: unknown): string {
