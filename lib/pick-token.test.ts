@@ -47,8 +47,10 @@ test("密钥不同被拒；伪造签名被拒", () => {
   assert.deepEqual(decodePick(tamper(token, (o) => (o.s = "0".repeat(64))), SECRET, NOW), { ok: false, reason: "invalid" });
 });
 
-test("北京范围之外的坐标即使签名有效也被拒", () => {
-  const token = encodePick({ name: "上海", lng: 121.47, lat: 31.23 }, SECRET, NOW);
+test("中国范围之外的坐标即使签名有效也被拒", () => {
+  // 全国范围：外地（上海）可以；中国范围以外（东京）拒绝
+  assert.equal(decodePick(encodePick({ name: "上海", lng: 121.47, lat: 31.23 }, SECRET, NOW), SECRET, NOW).ok, true);
+  const token = encodePick({ name: "东京", lng: 139.69, lat: 35.69 }, SECRET, NOW);
   assert.deepEqual(decodePick(token, SECRET, NOW), { ok: false, reason: "outside" });
 });
 

@@ -39,7 +39,7 @@ type Report = {
 type Problem = { message: string; showDemo: boolean };
 
 // 定位含糊时服务器返回的候选（pick 是服务器签发的令牌，选中后凭它继续分析）
-type Choice = { name: string; district: string; address: string; type: string; pick: string };
+type Choice = { name: string; district: string; region?: string; address: string; type: string; pick: string };
 type ChoiceSet = { query: string; reason: string; candidates: Choice[] };
 
 const DEMO_URL = "https://dengzishuo19.github.io/site-analysis-agent/";
@@ -49,7 +49,7 @@ const RULES_URL = `${REPO_URL}/blob/main/docs/testset/review.md`;
 type Check = { ok: boolean; result?: unknown; error?: string };
 type Health = { amap: Check; llm: Check };
 
-// 首页：输入北京地址，查看周边设施统计表
+// 首页：输入地址（全国，中国大陆），查看周边设施统计表
 export default function Home() {
   const [address, setAddress] = useState("");
   const [stats, setStats] = useState<SiteStats | null>(null);
@@ -177,7 +177,7 @@ export default function Home() {
       {/* 刊头：细线下的刊名与检索范围 */}
       <div className="flex items-baseline justify-between border-b border-ink pb-2 text-xs text-ink-2">
         <span className="tracking-widest">场地分析 Agent</span>
-        <span className="font-mono">北京 · 半径 1000 m</span>
+        <span className="font-mono">全国 · 半径 1000 m</span>
       </div>
 
       {!stats && !loading ? (
@@ -190,7 +190,7 @@ export default function Home() {
             场地分析。
           </h1>
           <div className="text-sm leading-7 text-ink-2 lg:border-l lg:border-ink lg:pl-5">
-            <p>输入北京的一个地址：代码统计周边 1 km 的 7 类设施，大模型撰写简报，代码逐条核对简报里的每一个数字。</p>
+            <p>输入全国任意一个地址（中国大陆）：代码统计周边 1 km 的 7 类设施，大模型撰写简报，代码逐条核对简报里的每一个数字。</p>
             <ol className="mt-3 space-y-0.5 text-xs">
               <li><span className="mr-2 font-mono">01</span>统计由代码计算，不让模型数数</li>
               <li><span className="mr-2 font-mono">02</span>简报逐条校验，编造的数字会被抓出</li>
@@ -213,8 +213,8 @@ export default function Home() {
         <input
           value={address}
           onChange={(e) => setAddress(e.target.value)}
-          placeholder="输入北京地址，如：国贸地铁站"
-          aria-label="北京地址"
+          placeholder="输入地址，如：上海 人民广场"
+          aria-label="地址（可在前面加城市名）"
           maxLength={60}
           className="min-h-12 min-w-0 flex-1 bg-transparent px-0 text-base outline-none placeholder:text-ink-3"
         />
@@ -374,7 +374,7 @@ function ChoiceList({ choices, onPick, disabled }: { choices: ChoiceSet; onPick:
       ? `“${choices.query}”有多个可能的地点，请选择：`
       : `没能确定“${choices.query}”具体指哪里，请选择一个地点：`;
   return (
-    <section className="mt-6 rounded border p-4" aria-live="polite">
+    <section className="mt-6 border-t-[3px] border-ink pt-3" aria-live="polite">
       <p className="text-sm font-medium">{title}</p>
       <ul className="mt-3 space-y-2">
         {choices.candidates.map((c) => (
@@ -383,18 +383,19 @@ function ChoiceList({ choices, onPick, disabled }: { choices: ChoiceSet; onPick:
               type="button"
               disabled={disabled}
               onClick={() => onPick(c)}
-              className="w-full rounded border px-3 py-2 text-left text-sm hover:bg-paper-2 disabled:opacity-50"
+              className="min-h-11 w-full border-b border-hair px-1 py-2 text-left text-sm hover:bg-paper-2 disabled:opacity-50"
             >
               <span className="font-medium">{c.name}</span>
+              {c.region && <span className="ml-2 text-xs text-ink-2">{c.region}</span>}
               <span className="block text-xs text-ink-3">
-                {[c.district, c.address].filter(Boolean).join(" · ")}
+                {c.address}
                 {c.type ? `　｜　${c.type}` : ""}
               </span>
             </button>
           </li>
         ))}
       </ul>
-      <p className="mt-3 text-xs text-ink-3">都不是？请在上面输入更具体的名称（例如加上“西城校区”）后重新分析。</p>
+      <p className="mt-3 text-xs text-ink-3">都不是？请输入更具体的名称，或在前面加上城市名并用空格隔开（例如“上海 人民广场”）后重新分析。</p>
     </section>
   );
 }

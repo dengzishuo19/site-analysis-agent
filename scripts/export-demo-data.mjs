@@ -10,6 +10,9 @@ const CASES = [
   { id: "yizhuang", title: "亦庄", tag: "产业园区", address: "北京市大兴区亦庄经济技术开发区" },
   // 校园案例：最能展示噪点过滤与子类型分解。用该校的正式地址“展览路1号”：直接写校名时高德会定位到校区东门，最近设施会变成校内点位
   { id: "bucea", title: "北京建筑大学西城校区", tag: "校园（噪点过滤）", address: "北京市西城区展览路1号" },
+  // 外地案例：证明全国可用（派工单 014）
+  { id: "lujiazui", title: "上海陆家嘴", tag: "外地 · 金融中心", address: "上海 陆家嘴", pickName: "陆家嘴" },
+  { id: "taikooli", title: "成都太古里", tag: "外地 · 商业街区", address: "成都 成都太古里", pickName: "成都太古里" },
   { id: "badaling", title: "八达岭", tag: "偏远景区", address: "北京市延庆区八达岭长城" },
 ];
 

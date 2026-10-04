@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
-const DESCRIPTION = "输入北京的一个地址，自动统计周边 1 km 的 7 类设施，生成交互地图与逐条校验的场地分析简报。";
+const DESCRIPTION = "输入全国任意一个地址，自动统计周边 1 km 的 7 类设施，生成交互地图与逐条校验的场地分析简报。";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.dzs-agent.com"),
