@@ -38,6 +38,12 @@ const componentCss = `
 .viz-status:empty{display:none}
 .viz-status.is-center{left:50%;top:50%;bottom:auto;transform:translate(-50%,-50%);width:max-content;max-width:86%;text-align:center;white-space:normal}
 .viz-pin{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font:700 13px/1 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--c);color:var(--c-ink);border:2px solid var(--viz-surface);box-shadow:0 1px 3px rgba(0,0,0,.4);cursor:pointer;box-sizing:border-box}
+.viz-pin{position:relative}
+.viz-count{position:absolute;top:-7px;right:-9px;min-width:16px;height:16px;padding:0 3px;border-radius:8px;background:var(--viz-ink);color:var(--viz-surface);font:700 10px/16px system-ui,-apple-system,"Segoe UI",sans-serif;text-align:center;box-sizing:border-box}
+.viz-cluster{position:relative;min-width:30px;height:30px;padding:0 6px;border-radius:15px;display:grid;place-items:center;background:var(--viz-ink);color:var(--viz-surface);font:700 13px/1 system-ui,-apple-system,"Segoe UI",sans-serif;border:2px solid var(--viz-surface);box-shadow:0 1px 3px rgba(0,0,0,.4);cursor:pointer;box-sizing:border-box}
+.viz-dots{position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);display:flex;gap:2px}
+.viz-dot{width:8px;height:8px;border-radius:50%;background:var(--c);border:1px solid var(--viz-surface)}
+.viz-info-list{margin:4px 0 0;padding-left:16px;max-height:180px;overflow:auto}
 .viz-center{width:16px;height:16px;border-radius:50%;background:var(--viz-ink);border:3px solid var(--viz-surface);box-shadow:0 1px 3px rgba(0,0,0,.5);box-sizing:border-box}
 .viz-info{padding:2px 4px;font:13px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:#0b0b0b}
 .viz-info strong{display:block}

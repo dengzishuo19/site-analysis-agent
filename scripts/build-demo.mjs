@@ -31,7 +31,7 @@ const json = JSON.stringify(cases)
   .replaceAll(String.fromCharCode(0x2029), BS + "u2029");
 
 // 把 lib/ 里的可视化模块转成浏览器可直接运行的脚本：去掉类型、import 与 export，按依赖顺序拼接（与应用共用同一份源码）
-const MODULES = ["palette", "map-model", "chart-model", "chart-html", "site-map"];
+const MODULES = ["palette", "map-model", "map-cluster", "chart-model", "chart-html", "site-map"];
 const vizBundle = MODULES.map((name) => {
   const js = stripTypeScriptTypes(fs.readFileSync(`lib/${name}.ts`, "utf8"));
   return js

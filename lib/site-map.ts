@@ -2,6 +2,7 @@
 // 交互地图：不依赖任何框架，命令式渲染“图例 + 高德地图 + 说明”。应用（React）与静态演示页共用同一份。
 // 只使用地图渲染、标记、圆、信息窗，不使用需要“安全密钥”的服务插件。所有文字都用 textContent 写入，避免注入。
 import type { MapModel } from "./map-model.ts";
+import { CLUSTER_MAX_ZOOM, clusterMarkers, type Cluster } from "./map-cluster.ts";
 
 export type MountOptions = {
   key: string | undefined; // 高德 Web 端（JS API）Key
@@ -67,7 +68,8 @@ export function mountSiteMap(root: HTMLElement, model: MapModel, opts: MountOpti
   let map: any = null;
   let slowTimer: ReturnType<typeof setTimeout> | undefined;
   let resizeObserver: ResizeObserver | undefined;
-  const markersByCat = new Map<string, any[]>();
+  let drawn: any[] = []; // 当前画在地图上的簇标记，重画前移除
+  let redraw: () => void = () => {}; // 地图就绪后替换为真正的重画函数
   const hidden = new Set<string>();
 
   root.replaceChildren();
@@ -91,8 +93,8 @@ export function mountSiteMap(root: HTMLElement, model: MapModel, opts: MountOpti
       if (nowHidden) hidden.add(item.key);
       else hidden.delete(item.key);
       btn.setAttribute("aria-pressed", String(!nowHidden));
-      for (const m of markersByCat.get(item.key) ?? []) nowHidden ? m.hide() : m.show();
       infoWindow?.close();
+      redraw(); // 隐藏的类别不参与聚合，簇随之重算
     });
     li.append(btn);
     legend.append(li);
@@ -106,7 +108,7 @@ export function mountSiteMap(root: HTMLElement, model: MapModel, opts: MountOpti
   const canvas = el("div", "viz-map-canvas");
   const status = el("div", "viz-status");
   box.append(canvas, status);
-  const note = el("p", "viz-note", "点击标记查看详情，点击图例可隐藏或显示某一类别；图例中“标出数 / 总数”表示地图标出的数量与该类设施总数；地铁站出入口全部标出，其余每类只标出距离最近的至多 10 处。圆为检索范围。");
+  const note = el("p", "viz-note", "点击标记查看详情，相距很近的标记会合并为带数字的圆点，点击即放大拆开；点击图例可隐藏或显示某一类别；图例中“标出数 / 总数”表示地图标出的数量与该类设施总数；地铁站出入口全部标出，其余每类只标出距离最近的至多 10 处。圆为检索范围。");
   root.append(legend, box, note);
 
   let infoWindow: any = null;
@@ -212,25 +214,74 @@ export function mountSiteMap(root: HTMLElement, model: MapModel, opts: MountOpti
 
       const centerEl = el("div", "viz-center");
       centerEl.title = model.center.address;
-      map.add(new AMap.Marker({ position: center, content: centerEl, anchor: "center", zIndex: 200 }));
+      // 中心点放在设施标记下面：避免盖住正中间簇的数字（中心位置仍由虚线圆标出）
+      map.add(new AMap.Marker({ position: center, content: centerEl, anchor: "center", zIndex: 90 }));
 
       infoWindow = new AMap.InfoWindow({ offset: new AMap.Pixel(0, -16) });
-      for (const m of model.markers) {
-        const pin = el("div", "viz-pin", m.glyph);
-        pin.dataset.fam = m.family;
-        pin.title = `${m.name}（${m.category}，${m.distanceM} m）`;
-        const marker = new AMap.Marker({ position: [m.lng, m.lat], content: pin, anchor: "center", zIndex: 100 });
-        marker.on("click", () => {
-          const info = el("div", "viz-info");
-          info.append(el("strong", undefined, m.name), document.createTextNode(`${m.category} · ${m.distanceM} m`));
-          infoWindow.setContent(info);
-          infoWindow.open(map, [m.lng, m.lat]);
-        });
-        map.add(marker);
-        const list = markersByCat.get(m.categoryKey) ?? [];
-        list.push(marker);
-        markersByCat.set(m.categoryKey, list);
-      }
+      const legendByKey = new Map(model.legend.map((l) => [l.key, l]));
+
+      // 簇的外观：单点 = 原来的标记；同类多点 = 该类标记 + 数量角标；多类 = 中性圆点写总数 + 小色点表示含有哪几类
+      const clusterEl = (c: Cluster): HTMLElement => {
+        const first = c.members[0];
+        if (c.categories.length === 1) {
+          const pin = el("div", "viz-pin", first.glyph);
+          pin.dataset.fam = first.family;
+          if (c.members.length > 1) pin.append(el("span", "viz-count", String(c.members.length)));
+          pin.title = c.members.length === 1 ? `${first.name}（${first.category}，${first.distanceM} m）` : `${first.category} ${c.members.length} 处，点击放大`;
+          return pin;
+        }
+        const box = el("div", "viz-cluster", String(c.members.length));
+        const dots = el("span", "viz-dots");
+        for (const k of c.categories.slice(0, 3)) {
+          const d = el("span", "viz-dot");
+          d.dataset.fam = legendByKey.get(k)?.family ?? "";
+          dots.append(d);
+        }
+        box.append(dots);
+        box.title = c.categories.map((k) => `${legendByKey.get(k)?.label ?? k} ${c.members.filter((m) => m.categoryKey === k).length}`).join("、") + "，点击放大";
+        return box;
+      };
+
+      // 簇内设施列表（已放到最大仍重叠时用）
+      const listInfo = (c: Cluster) => {
+        const info = el("div", "viz-info");
+        info.append(el("strong", undefined, `此处 ${c.members.length} 处设施`));
+        const ul = el("ul", "viz-info-list");
+        for (const m of [...c.members].sort((a, b) => a.distanceM - b.distanceM).slice(0, 12)) ul.append(el("li", undefined, `${m.name} · ${m.category} · ${m.distanceM} m`));
+        info.append(ul);
+        if (c.members.length > 12) info.append(el("div", undefined, `等 ${c.members.length} 处`));
+        return info;
+      };
+
+      redraw = () => {
+        if (destroyed || !map) return;
+        if (drawn.length) map.remove(drawn);
+        drawn = [];
+        const zoom = map.getZoom();
+        for (const c of clusterMarkers(model.markers, zoom, { hidden })) {
+          const marker = new AMap.Marker({ position: [c.lng, c.lat], content: clusterEl(c), anchor: "center", zIndex: 100 + Math.min(c.members.length, 50) });
+          marker.on("click", () => {
+            if (c.members.length === 1) {
+              const m = c.members[0];
+              const info = el("div", "viz-info");
+              info.append(el("strong", undefined, m.name), document.createTextNode(`${m.category} · ${m.distanceM} m`));
+              infoWindow.setContent(info);
+              infoWindow.open(map, [m.lng, m.lat]);
+            } else if (map.getZoom() < CLUSTER_MAX_ZOOM) {
+              infoWindow.close();
+              map.setZoomAndCenter(Math.min(Math.floor(map.getZoom()) + 2, CLUSTER_MAX_ZOOM), [c.lng, c.lat]);
+            } else {
+              infoWindow.setContent(listInfo(c));
+              infoWindow.open(map, [c.lng, c.lat]);
+            }
+          });
+          drawn.push(marker);
+        }
+        map.add(drawn);
+        root.dataset.symbols = String(drawn.length); // 便于调试与自动化测试
+      };
+      map.on("zoomend", () => redraw());
+      redraw();
       applyFit();
     })
     .catch((err: Error) => showFallback(err.message));

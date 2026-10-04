@@ -119,6 +119,12 @@
 .viz-status:empty{display:none}
 .viz-status.is-center{left:50%;top:50%;bottom:auto;transform:translate(-50%,-50%);width:max-content;max-width:86%;text-align:center;white-space:normal}
 .viz-pin{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font:700 13px/1 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--c);color:var(--c-ink);border:2px solid var(--viz-surface);box-shadow:0 1px 3px rgba(0,0,0,.4);cursor:pointer;box-sizing:border-box}
+.viz-pin{position:relative}
+.viz-count{position:absolute;top:-7px;right:-9px;min-width:16px;height:16px;padding:0 3px;border-radius:8px;background:var(--viz-ink);color:var(--viz-surface);font:700 10px/16px system-ui,-apple-system,"Segoe UI",sans-serif;text-align:center;box-sizing:border-box}
+.viz-cluster{position:relative;min-width:30px;height:30px;padding:0 6px;border-radius:15px;display:grid;place-items:center;background:var(--viz-ink);color:var(--viz-surface);font:700 13px/1 system-ui,-apple-system,"Segoe UI",sans-serif;border:2px solid var(--viz-surface);box-shadow:0 1px 3px rgba(0,0,0,.4);cursor:pointer;box-sizing:border-box}
+.viz-dots{position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);display:flex;gap:2px}
+.viz-dot{width:8px;height:8px;border-radius:50%;background:var(--c);border:1px solid var(--viz-surface)}
+.viz-info-list{margin:4px 0 0;padding-left:16px;max-height:180px;overflow:auto}
 .viz-center{width:16px;height:16px;border-radius:50%;background:var(--viz-ink);border:3px solid var(--viz-surface);box-shadow:0 1px 3px rgba(0,0,0,.5);box-sizing:border-box}
 .viz-info{padding:2px 4px;font:13px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:#0b0b0b}
 .viz-info strong{display:block}
@@ -450,6 +456,69 @@ function buildMapModel(stats          )           {
   return { center: stats.center, radius: stats.radius, markers, legend };
 }
 
+// 地图标记聚合：相距很近的标记合并为一个“簇”，随缩放重新计算。纯函数，不依赖高德插件，便于单测。
+                                                
+
+const CLUSTER_RADIUS_PX = 30; // 两个符号圆心相距小于这个像素数就合并（标记直径 26 px）
+const CLUSTER_MAX_ZOOM = 18; // 缩放到这一级及以上不再聚合，每个点单独显示
+
+                       
+              
+              
+                       
+                                             
+  
+
+// 经纬度 → Web 墨卡托世界像素坐标（256 像素瓦片）；与高德地图的投影一致
+function worldPx(lng        , lat        , zoom        )                   {
+  const size = 256 * 2 ** zoom;
+  const s = Math.sin((lat * Math.PI) / 180);
+  return [((lng + 180) / 360) * size, (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * size];
+}
+
+// 贪心聚合：按输入顺序，标记离某个已有簇的中心小于 radiusPx 就并入（簇中心取成员像素坐标的平均），否则新开一簇。
+// hidden 中的类别不参与；zoom ≥ maxZoom 时不聚合。
+function clusterMarkers(
+  markers             ,
+  zoom        ,
+  opts                                                                = {},
+)            {
+  const radius = opts.radiusPx ?? CLUSTER_RADIUS_PX;
+  const maxZoom = opts.maxZoom ?? CLUSTER_MAX_ZOOM;
+  const visible = markers.filter((m) => !opts.hidden?.has(m.categoryKey) && Number.isFinite(m.lng) && Number.isFinite(m.lat));
+
+  const groups                                                   = [];
+  for (const m of visible) {
+    const [x, y] = worldPx(m.lng, m.lat, zoom);
+    const g = zoom >= maxZoom ? undefined : groups.find((c) => Math.hypot(c.x - x, c.y - y) < radius);
+    if (g) {
+      const n = g.members.length;
+      g.x = (g.x * n + x) / (n + 1);
+      g.y = (g.y * n + y) / (n + 1);
+      g.members.push(m);
+    } else {
+      groups.push({ x, y, members: [m] });
+    }
+  }
+
+  return groups.map((g) => {
+    const counts = new Map                ();
+    for (const m of g.members) counts.set(m.categoryKey, (counts.get(m.categoryKey) ?? 0) + 1);
+    return {
+      lng: g.members.reduce((a, m) => a + m.lng, 0) / g.members.length,
+      lat: g.members.reduce((a, m) => a + m.lat, 0) / g.members.length,
+      members: g.members,
+      categories: [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([k]) => k),
+    };
+  });
+}
+
+// 量化遮挡：圆心距离小于 diameterPx 的符号数（用于验收与回归测试）
+function countOverlaps(points                                , zoom        , diameterPx = 26)         {
+  const p = points.map((q) => worldPx(q.lng, q.lat, zoom));
+  return p.filter((a, i) => p.some((b, j) => j !== i && Math.hypot(a[0] - b[0], a[1] - b[1]) < diameterPx)).length;
+}
+
 // 条形图数据模型：把统计数据转成图表的行，纯函数，便于单测
 
 // 生成图表所需的最小统计数据结构（与 SiteStats 兼容）
@@ -632,7 +701,8 @@ function mountSiteMap(root             , model          , opts              )   
   let map      = null;
   let slowTimer                                           ;
   let resizeObserver                            ;
-  const markersByCat = new Map               ();
+  let drawn        = []; // 当前画在地图上的簇标记，重画前移除
+  let redraw             = () => {}; // 地图就绪后替换为真正的重画函数
   const hidden = new Set        ();
 
   root.replaceChildren();
@@ -656,8 +726,8 @@ function mountSiteMap(root             , model          , opts              )   
       if (nowHidden) hidden.add(item.key);
       else hidden.delete(item.key);
       btn.setAttribute("aria-pressed", String(!nowHidden));
-      for (const m of markersByCat.get(item.key) ?? []) nowHidden ? m.hide() : m.show();
       infoWindow?.close();
+      redraw(); // 隐藏的类别不参与聚合，簇随之重算
     });
     li.append(btn);
     legend.append(li);
@@ -671,7 +741,7 @@ function mountSiteMap(root             , model          , opts              )   
   const canvas = el("div", "viz-map-canvas");
   const status = el("div", "viz-status");
   box.append(canvas, status);
-  const note = el("p", "viz-note", "点击标记查看详情，点击图例可隐藏或显示某一类别；图例中“标出数 / 总数”表示地图标出的数量与该类设施总数；地铁站出入口全部标出，其余每类只标出距离最近的至多 10 处。圆为检索范围。");
+  const note = el("p", "viz-note", "点击标记查看详情，相距很近的标记会合并为带数字的圆点，点击即放大拆开；点击图例可隐藏或显示某一类别；图例中“标出数 / 总数”表示地图标出的数量与该类设施总数；地铁站出入口全部标出，其余每类只标出距离最近的至多 10 处。圆为检索范围。");
   root.append(legend, box, note);
 
   let infoWindow      = null;
@@ -777,25 +847,74 @@ function mountSiteMap(root             , model          , opts              )   
 
       const centerEl = el("div", "viz-center");
       centerEl.title = model.center.address;
-      map.add(new AMap.Marker({ position: center, content: centerEl, anchor: "center", zIndex: 200 }));
+      // 中心点放在设施标记下面：避免盖住正中间簇的数字（中心位置仍由虚线圆标出）
+      map.add(new AMap.Marker({ position: center, content: centerEl, anchor: "center", zIndex: 90 }));
 
       infoWindow = new AMap.InfoWindow({ offset: new AMap.Pixel(0, -16) });
-      for (const m of model.markers) {
-        const pin = el("div", "viz-pin", m.glyph);
-        pin.dataset.fam = m.family;
-        pin.title = `${m.name}（${m.category}，${m.distanceM} m）`;
-        const marker = new AMap.Marker({ position: [m.lng, m.lat], content: pin, anchor: "center", zIndex: 100 });
-        marker.on("click", () => {
-          const info = el("div", "viz-info");
-          info.append(el("strong", undefined, m.name), document.createTextNode(`${m.category} · ${m.distanceM} m`));
-          infoWindow.setContent(info);
-          infoWindow.open(map, [m.lng, m.lat]);
-        });
-        map.add(marker);
-        const list = markersByCat.get(m.categoryKey) ?? [];
-        list.push(marker);
-        markersByCat.set(m.categoryKey, list);
-      }
+      const legendByKey = new Map(model.legend.map((l) => [l.key, l]));
+
+      // 簇的外观：单点 = 原来的标记；同类多点 = 该类标记 + 数量角标；多类 = 中性圆点写总数 + 小色点表示含有哪几类
+      const clusterEl = (c         )              => {
+        const first = c.members[0];
+        if (c.categories.length === 1) {
+          const pin = el("div", "viz-pin", first.glyph);
+          pin.dataset.fam = first.family;
+          if (c.members.length > 1) pin.append(el("span", "viz-count", String(c.members.length)));
+          pin.title = c.members.length === 1 ? `${first.name}（${first.category}，${first.distanceM} m）` : `${first.category} ${c.members.length} 处，点击放大`;
+          return pin;
+        }
+        const box = el("div", "viz-cluster", String(c.members.length));
+        const dots = el("span", "viz-dots");
+        for (const k of c.categories.slice(0, 3)) {
+          const d = el("span", "viz-dot");
+          d.dataset.fam = legendByKey.get(k)?.family ?? "";
+          dots.append(d);
+        }
+        box.append(dots);
+        box.title = c.categories.map((k) => `${legendByKey.get(k)?.label ?? k} ${c.members.filter((m) => m.categoryKey === k).length}`).join("、") + "，点击放大";
+        return box;
+      };
+
+      // 簇内设施列表（已放到最大仍重叠时用）
+      const listInfo = (c         ) => {
+        const info = el("div", "viz-info");
+        info.append(el("strong", undefined, `此处 ${c.members.length} 处设施`));
+        const ul = el("ul", "viz-info-list");
+        for (const m of [...c.members].sort((a, b) => a.distanceM - b.distanceM).slice(0, 12)) ul.append(el("li", undefined, `${m.name} · ${m.category} · ${m.distanceM} m`));
+        info.append(ul);
+        if (c.members.length > 12) info.append(el("div", undefined, `等 ${c.members.length} 处`));
+        return info;
+      };
+
+      redraw = () => {
+        if (destroyed || !map) return;
+        if (drawn.length) map.remove(drawn);
+        drawn = [];
+        const zoom = map.getZoom();
+        for (const c of clusterMarkers(model.markers, zoom, { hidden })) {
+          const marker = new AMap.Marker({ position: [c.lng, c.lat], content: clusterEl(c), anchor: "center", zIndex: 100 + Math.min(c.members.length, 50) });
+          marker.on("click", () => {
+            if (c.members.length === 1) {
+              const m = c.members[0];
+              const info = el("div", "viz-info");
+              info.append(el("strong", undefined, m.name), document.createTextNode(`${m.category} · ${m.distanceM} m`));
+              infoWindow.setContent(info);
+              infoWindow.open(map, [m.lng, m.lat]);
+            } else if (map.getZoom() < CLUSTER_MAX_ZOOM) {
+              infoWindow.close();
+              map.setZoomAndCenter(Math.min(Math.floor(map.getZoom()) + 2, CLUSTER_MAX_ZOOM), [c.lng, c.lat]);
+            } else {
+              infoWindow.setContent(listInfo(c));
+              infoWindow.open(map, [c.lng, c.lat]);
+            }
+          });
+          drawn.push(marker);
+        }
+        map.add(drawn);
+        root.dataset.symbols = String(drawn.length); // 便于调试与自动化测试
+      };
+      map.on("zoomend", () => redraw());
+      redraw();
       applyFit();
     })
     .catch((err       ) => showFallback(err.message));
