@@ -72,7 +72,9 @@ function text(v: unknown): string {
 }
 
 const AROUND_PAGE_SIZE = 25; // 高德单页上限
-const AROUND_MAX_PAGES = 3; // 最多取 3 页（75 条）；噪点折叠需要看到尽量多的点位
+export const AROUND_MAX_PAGES = 3; // 默认最多取 3 页（75 条）
+// 高德周边搜索最多只能翻到第 8 页（200 条，已用真实接口核实：武汉大学教育类第 9 页为空）
+export const AROUND_MAX_PAGES_LIMIT = 8;
 const PAGE_GAP_MS = 350;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -82,11 +84,12 @@ export async function searchAroundRaw(
   center: { lng: number; lat: number },
   types: string,
   radius: number,
+  maxPages = AROUND_MAX_PAGES, // 页不满即停，所以多数场地实际只取 1–3 页
 ): Promise<{ total: number; pois: AroundPoi[]; exhausted: boolean }> {
   const pois: AroundPoi[] = [];
   let total = 0;
   let exhausted = false; // 最后一页没满，说明已取完（高德的总数有时比实际多 1）
-  for (let page = 1; page <= AROUND_MAX_PAGES; page++) {
+  for (let page = 1; page <= Math.min(maxPages, AROUND_MAX_PAGES_LIMIT); page++) {
     const data = await amapGet("/v3/place/around", {
       location: `${center.lng},${center.lat}`,
       types,

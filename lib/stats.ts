@@ -1,5 +1,5 @@
 // 场地周边设施统计：全部由代码计算，不调用大模型
-import { geocode, getPoiDetails, searchAroundRaw, type Poi } from "@/lib/amap";
+import { AROUND_MAX_PAGES, AROUND_MAX_PAGES_LIMIT, geocode, getPoiDetails, searchAroundRaw, type Poi } from "@/lib/amap";
 import { filterPois, parentIdsToResolve } from "@/lib/poi-filter";
 import { SUBTYPES, countSubtypes, hasSubtypes, subtypeOf, type PoolPoi, type SubtypeCount } from "@/lib/subtype";
 
@@ -47,7 +47,8 @@ export type SiteStats = {
 // 检索一个类别并折叠噪点。
 // 只取前几页：若没取完且确实折叠过，过滤后的数量只是下限（capped）；没折叠过则沿用高德给的总数
 async function searchCategory(center: { lng: number; lat: number }, cat: { key: string; types: string; fold: boolean }) {
-  const { total, pois: raw, exhausted } = await searchAroundRaw(center, cat.types, RADIUS_M);
+  // 需要折叠的类别取到高德的上限（200 条）：大校园的校内点位可多达一两百个，只取 75 条时折叠后几乎不剩（武汉大学曾显示“≥2”）
+  const { total, pois: raw, exhausted } = await searchAroundRaw(center, cat.types, RADIUS_M, cat.fold ? AROUND_MAX_PAGES_LIMIT : AROUND_MAX_PAGES);
   const parentIds = cat.fold ? parentIdsToResolve(raw) : [];
   const parents = new Map((parentIds.length ? await getPoiDetails(parentIds) : []).map((p) => [p.id, p]));
   const { pois, folded } = cat.fold
