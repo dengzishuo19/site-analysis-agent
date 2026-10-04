@@ -8,6 +8,8 @@ const CASES = [
   { id: "guomao", title: "国贸", tag: "成熟城区", address: "北京市朝阳区国贸地铁站" },
   { id: "shougang", title: "首钢园", tag: "工业遗存改造", address: "北京市石景山区首钢园" },
   { id: "yizhuang", title: "亦庄", tag: "产业园区", address: "北京市大兴区亦庄经济技术开发区" },
+  // 校园案例：最能展示噪点过滤与子类型分解。用该校的正式地址“展览路1号”：直接写校名时高德会定位到校区东门，最近设施会变成校内点位
+  { id: "bucea", title: "北京建筑大学西城校区", tag: "校园（噪点过滤）", address: "北京市西城区展览路1号" },
   { id: "badaling", title: "八达岭", tag: "偏远景区", address: "北京市延庆区八达岭长城" },
 ];
 
@@ -17,8 +19,9 @@ for (const c of CASES) {
   let stats = await sr.json();
   if (sr.ok && stats.kind === "choose") {
     // 定位含糊时服务器返回候选：演示数据固定选第一个，保证重新导出的结果可复现
-    console.log(`${c.title}: 有 ${stats.candidates.length} 个候选，选第一个「${stats.candidates[0].name}」`);
-    sr = await fetch(`${BASE}/api/site?pick=${encodeURIComponent(stats.candidates[0].pick)}`);
+    const chosen = stats.candidates.find((x) => x.name === c.pickName) ?? stats.candidates[0];
+    console.log(`${c.title}: 有 ${stats.candidates.length} 个候选，选「${chosen.name}」`);
+    sr = await fetch(`${BASE}/api/site?pick=${encodeURIComponent(chosen.pick)}`);
     stats = await sr.json();
   }
   if (!sr.ok) throw new Error(`${c.title} 统计失败：${stats.error}`);
@@ -44,6 +47,43 @@ for (const c of CASES) {
   console.log(`${c.title}: verified=${report.verified} attempts=${report.attempts}`);
   out.push({ ...c, stats, report });
 }
+
+// 在线版首页的示例：只留数量、最近设施与简报摘要（不含坐标和完整简报），避免首页脚本变大
+// 摘要优先取“公共服务与商业”小节的第一段（有具体设施与数字），没有则取第一段正文；过长则在句号处截断
+function excerpt(text) {
+  const lines = text.split(String.fromCharCode(10)).map((l) => l.trim());
+  const body = (from) => {
+    const k = lines.findIndex((l) => l.startsWith("## ") && l.includes(from));
+    if (k < 0) return "";
+    for (let m = k + 1; m < lines.length && !lines[m].startsWith("## "); m++) if (lines[m]) return lines[m];
+    return "";
+  };
+  const para = (body("公共服务") || lines.find((l) => l && !l.startsWith("## ")) || "").replace(/（依据：[^）]*）+/g, "");
+  if (para.length <= 260) return para;
+  const cut = para.slice(0, 260);
+  const end = cut.lastIndexOf("。");
+  return end > 60 ? cut.slice(0, end + 1) : cut;
+}
+const examples = out.map((c) => ({
+  id: c.id,
+  title: c.title,
+  tag: c.tag,
+  address: c.address,
+  generatedAt: c.stats.generatedAt,
+  center: c.stats.center.address,
+  categories: c.stats.categories.map((k) => ({
+    key: k.key,
+    label: k.label,
+    count: k.count,
+    capped: k.capped,
+    folded: k.folded ?? 0,
+    nearest: k.nearest && { name: k.nearest.name, distanceM: k.nearest.distanceM },
+  })),
+  excerpt: excerpt(c.report.text),
+  verified: c.report.verified,
+}));
+fs.writeFileSync("app/components/examples.json", JSON.stringify(examples, null, 1), "utf8");
+console.log("已写入 app/components/examples.json");
 
 fs.mkdirSync("demo-data", { recursive: true });
 fs.writeFileSync("demo-data/cases.json", JSON.stringify(out, null, 1), "utf8");

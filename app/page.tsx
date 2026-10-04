@@ -1,6 +1,7 @@
 "use client";
 
-import { Fragment, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
+import { HomeExample } from "./components/HomeExample";
 import { BarCharts, SiteMap, VizStyles, type VizStats } from "./components/SiteViz";
 
 type Poi = { name: string; distanceM: number; lng: number; lat: number };
@@ -56,6 +57,7 @@ export default function Home() {
   const [choices, setChoices] = useState<ChoiceSet | null>(null);
   const [refining, setRefining] = useState(false);
   const [refineError, setRefineError] = useState<string | null>(null);
+  const [exampleOpen, setExampleOpen] = useState(false); // 出结果后，用户点“再看示例”才重新展开
   const [reportStale, setReportStale] = useState(false); // 口径变了，已生成的简报对不上当前数字
   const runId = useRef(0); // 防止旧请求的结果覆盖新请求
 
@@ -90,6 +92,7 @@ export default function Home() {
     setReportLoading(false);
     setReportStale(false);
     setRefineError(null);
+    setExampleOpen(false);
     try {
       const res = await fetch(url);
       const data = await res.json();
@@ -153,18 +156,32 @@ export default function Home() {
     runSite(`/api/site?address=${encodeURIComponent(address)}`);
   }
 
+  function analyzeExample(addr: string) {
+    setAddress(addr);
+    setChoices(null);
+    runSite(`/api/site?address=${encodeURIComponent(addr)}`);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   function pickCandidate(c: Choice) {
     setChoices(null);
     runSite(`/api/site?pick=${encodeURIComponent(c.pick)}`);
   }
 
   return (
-    <main className="mx-auto max-w-3xl p-8">
+    <main className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-8 sm:py-8 lg:max-w-5xl">
       <h1 className="text-2xl font-bold">场地分析 Agent</h1>
       <p className="mt-2 text-sm text-gray-500">输入北京的一个地址，查看周边 1 km 的设施统计</p>
+      {!stats && !loading && (
+        <ul className="mt-3 space-y-1 text-sm">
+          <li>① 统计由代码计算，不让模型数数</li>
+          <li>② 简报逐条校验，编造的数字会被抓出</li>
+          <li>③ 噪点过滤有人工标注集度量</li>
+        </ul>
+      )}
 
       <form
-        className="mt-6 flex gap-2"
+        className="mt-6 flex flex-col gap-2 sm:flex-row"
         onSubmit={(e) => {
           e.preventDefault();
           analyze();
@@ -175,16 +192,18 @@ export default function Home() {
           onChange={(e) => setAddress(e.target.value)}
           placeholder="例如：北京市朝阳区国贸地铁站"
           maxLength={60}
-          className="flex-1 rounded border px-3 py-2"
+          className="min-h-11 flex-1 rounded border px-3 py-2"
         />
         <button
           type="submit"
           disabled={loading}
-          className="rounded bg-black px-4 py-2 text-white disabled:opacity-50 dark:bg-white dark:text-black"
+          className="min-h-11 rounded bg-black px-4 py-2 text-white disabled:opacity-50 dark:bg-white dark:text-black"
         >
-          {loading ? "分析中…（约 10 秒）" : "分析"}
+          {loading ? "分析中…" : "分析"}
         </button>
       </form>
+
+      {loading && <LoadingSteps />}
 
       {error && <ErrorNote problem={error} className="mt-4" />}
 
@@ -195,17 +214,16 @@ export default function Home() {
       {stats && <StatsTable stats={stats} onRefine={refine} busy={refining} error={refineError} />}
 
       {stats && (
-        <section className="mt-8">
-          <h2 className="mb-3 text-lg font-semibold">周边设施地图</h2>
-          <SiteMap stats={stats} />
-        </section>
-      )}
-
-      {stats && (
-        <section className="mt-8">
-          <h2 className="mb-3 text-lg font-semibold">设施对比</h2>
-          <BarCharts stats={stats} />
-        </section>
+        <div className="mt-8 grid gap-8 lg:grid-cols-2">
+          <section className="min-w-0">
+            <h2 className="mb-3 text-lg font-semibold">周边设施地图</h2>
+            <SiteMap stats={stats} />
+          </section>
+          <section className="min-w-0">
+            <h2 className="mb-3 text-lg font-semibold">设施对比</h2>
+            <BarCharts stats={stats} />
+          </section>
+        </div>
       )}
 
       {reportStale && (
@@ -220,8 +238,45 @@ export default function Home() {
       {reportError && <ErrorNote problem={reportError} className="mt-6" />}
       {report && <ReportView report={report} />}
 
+      {((!stats && !loading && !choices) || exampleOpen) && (
+        <HomeExample onAnalyze={analyzeExample} demoUrl={DEMO_URL} disabled={loading} />
+      )}
+      {stats && !exampleOpen && (
+        <p className="mt-10 text-sm">
+          <button type="button" onClick={() => setExampleOpen(true)} className="min-h-11 underline">
+            再看示例
+          </button>
+        </p>
+      )}
+
       {process.env.NODE_ENV !== "production" && <HealthCheck />}
     </main>
+  );
+}
+
+// 分析等待时的分步说明。接口是一次性返回的，所以这是按经验估计的“正在做什么”，不是真实进度
+function LoadingSteps() {
+  const steps = ["定位地址", "检索 7 类周边设施", "过滤噪点并整理"];
+  const [at, setAt] = useState(0);
+  useEffect(() => {
+    const t1 = setTimeout(() => setAt(1), 1500);
+    const t2 = setTimeout(() => setAt(2), 8000);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, []);
+  return (
+    <div className="mt-4 text-sm" role="status">
+      <ol className="space-y-1">
+        {steps.map((t, i) => (
+          <li key={t} className={i === at ? "font-medium" : i < at ? "text-gray-500" : "text-gray-400"}>
+            {i < at ? "✓" : i === at ? "…" : "·"} {t}
+          </li>
+        ))}
+      </ol>
+      <p className="mt-1 text-xs text-gray-500">通常需要 10 到 15 秒（上面的步骤是估计，不是实时进度）。</p>
+    </div>
   );
 }
 
@@ -298,7 +353,7 @@ function StatsTable({
             <th className="py-2">类别</th>
             <th>数量</th>
             <th>最近设施</th>
-            <th>距离</th>
+            <th className="hidden sm:table-cell">距离</th>
           </tr>
         </thead>
         <tbody>
@@ -307,8 +362,11 @@ function StatsTable({
               <tr className={c.subtypes ? "" : "border-b"}>
                 <td className="py-2">{c.label}</td>
                 <td>{c.capped ? `≥${c.count}` : c.count}</td>
-                <td>{c.nearest?.name ?? "—"}</td>
-                <td>{c.nearest ? `${c.nearest.distanceM} m` : "—"}</td>
+                <td className="pr-2">
+                  {c.nearest?.name ?? "—"}
+                  {c.nearest && <span className="block text-xs text-gray-500 sm:hidden">{c.nearest.distanceM} m</span>}
+                </td>
+                <td className="hidden sm:table-cell">{c.nearest ? `${c.nearest.distanceM} m` : "—"}</td>
               </tr>
               {c.subtypes && c.selected && (
                 <tr className="border-b">

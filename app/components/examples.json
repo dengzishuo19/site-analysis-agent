@@ -1,0 +1,435 @@
+[
+ {
+  "id": "guomao",
+  "title": "国贸",
+  "tag": "成熟城区",
+  "address": "北京市朝阳区国贸地铁站",
+  "generatedAt": "2026-10-04T05:58:27.373Z",
+  "center": "北京市朝阳区国贸地铁站(公交站)",
+  "categories": [
+   {
+    "key": "metro",
+    "label": "地铁站出入口",
+    "count": 32,
+    "capped": false,
+    "folded": 0,
+    "nearest": {
+     "name": "国贸地铁站A西北口",
+     "distanceM": 36
+    }
+   },
+   {
+    "key": "bus",
+    "label": "公交站",
+    "count": 24,
+    "capped": false,
+    "folded": 0,
+    "nearest": {
+     "name": "国贸地铁站(公交站)",
+     "distanceM": 0
+    }
+   },
+   {
+    "key": "school",
+    "label": "教育（学校）",
+    "count": 10,
+    "capped": false,
+    "folded": 7,
+    "nearest": {
+     "name": "亚洲财经商学院",
+     "distanceM": 330
+    }
+   },
+   {
+    "key": "hospital",
+    "label": "医疗（综合/专科医院）",
+    "count": 80,
+    "capped": false,
+    "folded": 0,
+    "nearest": {
+     "name": "领医医美·RYOYI(银泰中心in01院区)",
+     "distanceM": 108
+    }
+   },
+   {
+    "key": "commerce",
+    "label": "商业（购物+餐饮）",
+    "count": 600,
+    "capped": true,
+    "folded": 0,
+    "nearest": {
+     "name": "EMPORIO ARMANI(国贸商城店)",
+     "distanceM": 25
+    }
+   },
+   {
+    "key": "park",
+    "label": "公园绿地",
+    "count": 14,
+    "capped": false,
+    "folded": 0,
+    "nearest": {
+     "name": "国贸花园",
+     "distanceM": 265
+    }
+   },
+   {
+    "key": "industry",
+    "label": "工业（工厂+产业园区）",
+    "count": 4,
+    "capped": false,
+    "folded": 6,
+    "nearest": {
+     "name": "包老板服装定制工厂",
+     "distanceM": 302
+    }
+   }
+  ],
+  "excerpt": "教育（学校）共 10 处，最近为「亚洲财经商学院」，距离 330 m。其余较近的点位包括「清华大学附属小学商务中心区实验小学」距离 447 m、「家育苑幼儿园(建外校区)」距离 585 m、「CBD国际融商服务中心」距离 608 m、「北京市日坛中学(永安里校区)」距离 632 m。",
+  "verified": true
+ },
+ {
+  "id": "shougang",
+  "title": "首钢园",
+  "tag": "工业遗存改造",
+  "address": "北京市石景山区首钢园",
+  "generatedAt": "2026-10-04T05:58:46.376Z",
+  "center": "北京市石景山区首钢园",
+  "categories": [
+   {
+    "key": "metro",
+    "label": "地铁站出入口",
+    "count": 9,
+    "capped": false,
+    "folded": 0,
+    "nearest": {
+     "name": "北辛安地铁站A口",
+     "distanceM": 772
+    }
+   },
+   {
+    "key": "bus",
+    "label": "公交站",
+    "count": 25,
+    "capped": false,
+    "folded": 0,
+    "nearest": {
+     "name": "六工汇(公交站)",
+     "distanceM": 29
+    }
+   },
+   {
+    "key": "school",
+    "label": "教育（学校）",
+    "count": 1,
+    "capped": false,
+    "folded": 0,
+    "nearest": {
+     "name": "首钢幼教熙山府幼儿园",
+     "distanceM": 981
+    }
+   },
+   {
+    "key": "hospital",
+    "label": "医疗（综合/专科医院）",
+    "count": 1,
+    "capped": false,
+    "folded": 0,
+    "nearest": {
+     "name": "优辰口腔",
+     "distanceM": 977
+    }
+   },
+   {
+    "key": "commerce",
+    "label": "商业（购物+餐饮）",
+    "count": 214,
+    "capped": false,
+    "folded": 0,
+    "nearest": {
+     "name": "THE WOODS餐厅(石景山六工汇购物广场店)",
+     "distanceM": 53
+    }
+   },
+   {
+    "key": "park",
+    "label": "公园绿地",
+    "count": 7,
+    "capped": false,
+    "folded": 0,
+    "nearest": {
+     "name": "首钢园",
+     "distanceM": 0
+    }
+   },
+   {
+    "key": "industry",
+    "label": "工业（工厂+产业园区）",
+    "count": 8,
+    "capped": false,
+    "folded": 2,
+    "nearest": {
+     "name": "六工汇",
+     "distanceM": 189
+    }
+   }
+  ],
+  "excerpt": "教育（学校）共 1 处，最近为「首钢幼教熙山府幼儿园」，距离 981 m。",
+  "verified": true
+ },
+ {
+  "id": "yizhuang",
+  "title": "亦庄",
+  "tag": "产业园区",
+  "address": "北京市大兴区亦庄经济技术开发区",
+  "generatedAt": "2026-10-04T05:59:09.973Z",
+  "center": "北京市大兴区亦庄北京经济技术开发区",
+  "categories": [
+   {
+    "key": "metro",
+    "label": "地铁站出入口",
+    "count": 11,
+    "capped": false,
+    "folded": 0,
+    "nearest": {
+     "name": "荣京东街地铁站A1北口",
+     "distanceM": 578
+    }
+   },
+   {
+    "key": "bus",
+    "label": "公交站",
+    "count": 24,
+    "capped": false,
+    "folded": 0,
+    "nearest": {
+     "name": "亦庄管委会(公交站)",
+     "distanceM": 61
+    }
+   },
+   {
+    "key": "school",
+    "label": "教育（学校）",
+    "count": 4,
+    "capped": false,
+    "folded": 0,
+    "nearest": {
+     "name": "嘉慕传媒",
+     "distanceM": 232
+    }
+   },
+   {
+    "key": "hospital",
+    "label": "医疗（综合/专科医院）",
+    "count": 10,
+    "capped": false,
+    "folded": 0,
+    "nearest": {
+     "name": "北京皓尔国际口腔医院(朝林店)",
+     "distanceM": 242
+    }
+   },
+   {
+    "key": "commerce",
+    "label": "商业（购物+餐饮）",
+    "count": 597,
+    "capped": false,
+    "folded": 0,
+    "nearest": {
+     "name": "果栗园(亦庄创意广场店)",
+     "distanceM": 9
+    }
+   },
+   {
+    "key": "park",
+    "label": "公园绿地",
+    "count": 2,
+    "capped": false,
+    "folded": 0,
+    "nearest": {
+     "name": "博大公园",
+     "distanceM": 309
+    }
+   },
+   {
+    "key": "industry",
+    "label": "工业（工厂+产业园区）",
+    "count": 23,
+    "capped": false,
+    "folded": 1,
+    "nearest": {
+     "name": "北京经济技术开发区",
+     "distanceM": 0
+    }
+   }
+  ],
+  "excerpt": "商业（购物+餐饮）共 597 处，最近为「果栗园(亦庄创意广场店)」，距离 9 m；「鲜十方·freshcube智能鲜饮机器人(经开区管委会站)」距离 66 m，「BOOM FRESH大牌美妆集合店(北京丰大店)」距离 185 m，「悦来中餐厅」距离 186 m，「丰大国际酒店·宴会厅」距离 187 m。",
+  "verified": true
+ },
+ {
+  "id": "bucea",
+  "title": "北京建筑大学西城校区",
+  "tag": "校园（噪点过滤）",
+  "address": "北京市西城区展览路1号",
+  "generatedAt": "2026-10-04T05:59:34.717Z",
+  "center": "北京市西城区展览路1号",
+  "categories": [
+   {
+    "key": "metro",
+    "label": "地铁站出入口",
+    "count": 20,
+    "capped": false,
+    "folded": 0,
+    "nearest": {
+     "name": "车公庄西地铁站A西北口",
+     "distanceM": 246
+    }
+   },
+   {
+    "key": "bus",
+    "label": "公交站",
+    "count": 17,
+    "capped": false,
+    "folded": 0,
+    "nearest": {
+     "name": "西城教一楼(公交站)",
+     "distanceM": 181
+    }
+   },
+   {
+    "key": "school",
+    "label": "教育（学校）",
+    "count": 21,
+    "capped": false,
+    "folded": 25,
+    "nearest": {
+     "name": "北京建筑大学(西城校区)",
+     "distanceM": 57
+    }
+   },
+   {
+    "key": "hospital",
+    "label": "医疗（综合/专科医院）",
+    "count": 12,
+    "capped": false,
+    "folded": 1,
+    "nearest": {
+     "name": "展览路街道朝阳庵社区卫生服务站",
+     "distanceM": 487
+    }
+   },
+   {
+    "key": "commerce",
+    "label": "商业（购物+餐饮）",
+    "count": 528,
+    "capped": false,
+    "folded": 0,
+    "nearest": {
+     "name": "瑞幸咖啡(北京建筑大学西城校区店)",
+     "distanceM": 54
+    }
+   },
+   {
+    "key": "park",
+    "label": "公园绿地",
+    "count": 27,
+    "capped": false,
+    "folded": 0,
+    "nearest": {
+     "name": "西外文化休闲广场",
+     "distanceM": 447
+    }
+   },
+   {
+    "key": "industry",
+    "label": "工业（工厂+产业园区）",
+    "count": 8,
+    "capped": false,
+    "folded": 3,
+    "nearest": {
+     "name": "北京建筑大学科技园",
+     "distanceM": 161
+    }
+   }
+  ],
+  "excerpt": "教育（学校）共 21 处，最近为「北京建筑大学(西城校区)」，距离 57 m。其余较近的设施包括「广达北京建筑工程学院汽车工程科技中心」距离 110 m、「北京教育学院综合理科部」距离 256 m、「北京教育学院文兴街校区」距离 262 m、「北京建筑大学附属小学」距离 417 m。",
+  "verified": true
+ },
+ {
+  "id": "badaling",
+  "title": "八达岭",
+  "tag": "偏远景区",
+  "address": "北京市延庆区八达岭长城",
+  "generatedAt": "2026-10-04T05:59:51.013Z",
+  "center": "北京市延庆区八达岭长城",
+  "categories": [
+   {
+    "key": "metro",
+    "label": "地铁站出入口",
+    "count": 0,
+    "capped": false,
+    "folded": 0,
+    "nearest": null
+   },
+   {
+    "key": "bus",
+    "label": "公交站",
+    "count": 6,
+    "capped": false,
+    "folded": 0,
+    "nearest": {
+     "name": "八达岭长城(公交站)",
+     "distanceM": 372
+    }
+   },
+   {
+    "key": "school",
+    "label": "教育（学校）",
+    "count": 0,
+    "capped": false,
+    "folded": 0,
+    "nearest": null
+   },
+   {
+    "key": "hospital",
+    "label": "医疗（综合/专科医院）",
+    "count": 0,
+    "capped": false,
+    "folded": 0,
+    "nearest": null
+   },
+   {
+    "key": "commerce",
+    "label": "商业（购物+餐饮）",
+    "count": 51,
+    "capped": false,
+    "folded": 0,
+    "nearest": {
+     "name": "长城纪念品",
+     "distanceM": 189
+    }
+   },
+   {
+    "key": "park",
+    "label": "公园绿地",
+    "count": 5,
+    "capped": false,
+    "folded": 0,
+    "nearest": {
+     "name": "八达岭熊乐园",
+     "distanceM": 257
+    }
+   },
+   {
+    "key": "industry",
+    "label": "工业（工厂+产业园区）",
+    "count": 0,
+    "capped": false,
+    "folded": 0,
+    "nearest": null
+   }
+  ],
+  "excerpt": "教育（学校）范围内未检索到。医疗（综合/专科医院）范围内未检索到。商业（购物+餐饮）共 51 处，最近为「长城纪念品」，距离 189 m。其余较近的点位包括「虎头军煎饼(八达岭熊乐园店)」距离 218 m、「正新鸡排(熊乐园店)」距离 223 m、「蜜雪冰城(八达岭长城熊乐园店)」距离 253 m、「醉面(八达岭二店)」距离 255 m。",
+  "verified": true
+ }
+]
