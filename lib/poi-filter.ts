@@ -46,8 +46,9 @@ export function foldSubUnits(
   parents: Map<string, ParentInfo>,
   center: { lng: number; lat: number },
   radius: number,
+  knownIds?: Set<string>, // 原始结果里的全部 id：上级已被前面的规则去掉时，子点位仍按“上级在结果里”折叠
 ): { pois: TypedPoi[]; folded: number; keptIds: Set<string> } {
-  const ids = new Set(pois.map((p) => p.id));
+  const ids = knownIds ?? new Set(pois.map((p) => p.id));
   const kept: TypedPoi[] = [];
   const keptById = new Map<string, TypedPoi>();
   const keptIds = new Set<string>(); // 以自身身份留在结果里的原始点位（被合并成父级的子点位不在其中）
@@ -144,6 +145,16 @@ export function filterPois(
     }
   }
 
-  const r = foldSubUnits(pois.filter((p) => !removedIds.has(p.id)), parents, center, radius);
+  // 出入口点位（“某某中学(西门)”）：机构本体也在列表里时折叠
+  if (category === "school" || category === "hospital") {
+    const gate = /[（(](东|南|西|北|正|侧|后)?\d*号?门[）)]$/;
+    for (const p of pois) {
+      if (removedIds.has(p.id) || !gate.test(p.name)) continue;
+      const b = baseName(p.name);
+      if (pois.some((q) => q.id !== p.id && !gate.test(q.name) && baseName(q.name).startsWith(b))) removedIds.add(p.id);
+    }
+  }
+
+  const r = foldSubUnits(pois.filter((p) => !removedIds.has(p.id)), parents, center, radius, new Set(pois.map((p) => p.id)));
   return { pois: r.pois, folded: r.folded, removed: removedIds.size, keptIds: r.keptIds };
 }

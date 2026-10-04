@@ -35,12 +35,26 @@ test("完整流程比单纯按 parent 折叠漏网更少", () => {
   assert.ok(full.killed.length <= parentOnly.killed.length);
 });
 
+const nationwide: LabeledGroup[] = JSON.parse(fs.readFileSync("docs/testset/labels-nationwide.json", "utf8"));
+
+test("外地测试集完整：15 组，每个点位都有审定后的标注（没有“拿不准”）", () => {
+  assert.equal(nationwide.length, 15);
+  for (const g of nationwide) for (const r of g.pois) assert.ok(["K", "S", "M"].includes(r.label), `${g.siteName}/${r.name}：${r.label}`);
+});
+
+// 外地：规则修改前误杀 1/274、漏网 66/335；派工单 015 修改后误杀 0、漏网 16
+test("外地：误杀不超过 0，漏网不超过 16", () => {
+  const m = evaluate(nationwide, currentRule);
+  assert.ok(m.killed.length <= 0, `误杀 ${m.killed.length}：${m.killed.map((r) => r.name).join("、")}`);
+  assert.ok(m.missed.length <= 16, `漏网 ${m.missed.length}`);
+});
+
 // 防退化：改过滤规则后，这两个数只能变好，不能变差。规则改进后请同步下调。
-// 历史：第一版（只按 parent 折叠）误杀 4、漏网 48；加入规则后误杀 1、漏网 16。
-test("当前规则：误杀不超过 1，漏网不超过 16", () => {
+// 历史：第一版（只按 parent 折叠）误杀 4、漏网 48；加入规则后误杀 1、漏网 16；派工单 015 后误杀 1、漏网 12。
+test("当前规则：误杀不超过 1，漏网不超过 12", () => {
   const m = evaluate(groups, currentRule);
   assert.ok(m.killed.length <= 1, `误杀 ${m.killed.length}：${m.killed.map((r) => r.name).join("、")}`);
-  assert.ok(m.missed.length <= 16, `漏网 ${m.missed.length}：${m.missed.map((r) => r.name).join("、")}`);
+  assert.ok(m.missed.length <= 12, `漏网 ${m.missed.length}：${m.missed.map((r) => r.name).join("、")}`);
 });
 
 // 子类型：教育、工业中“应保留”的点位已人工核对子类型（见 docs/testset，47 + 26 个，核对为全部正确）。
