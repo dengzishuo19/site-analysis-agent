@@ -5,7 +5,7 @@
 
 export type Mode = "light" | "dark";
 export type FamilyKey = "transit" | "services" | "green" | "industry";
-export type CategoryStyle = { family: FamilyKey; glyph: string };
+export type CategoryStyle = { family: FamilyKey; glyph: string; short: string }; // short：窄屏图例用的短名
 
 // 图表表面色
 export const SURFACE: Record<Mode, string> = { light: "#fcfcfb", dark: "#1a1a19" };
@@ -31,13 +31,13 @@ export const FAMILY_ORDER: FamilyKey[] = ["transit", "services", "green", "indus
 
 // 类别（与 lib/stats.ts 的 key 对应）所属的类型族与单字标记
 export const CATEGORIES: Record<string, CategoryStyle> = {
-  metro: { family: "transit", glyph: "地" },
-  bus: { family: "transit", glyph: "公" },
-  school: { family: "services", glyph: "教" },
-  hospital: { family: "services", glyph: "医" },
-  commerce: { family: "services", glyph: "商" },
-  park: { family: "green", glyph: "园" },
-  industry: { family: "industry", glyph: "工" },
+  metro: { family: "transit", glyph: "地", short: "地铁口" },
+  bus: { family: "transit", glyph: "公", short: "公交" },
+  school: { family: "services", glyph: "教", short: "教育" },
+  hospital: { family: "services", glyph: "医", short: "医疗" },
+  commerce: { family: "services", glyph: "商", short: "商业" },
+  park: { family: "green", glyph: "园", short: "公园" },
+  industry: { family: "industry", glyph: "工", short: "工业" },
 };
 
 // 单个色彩通道的线性化值

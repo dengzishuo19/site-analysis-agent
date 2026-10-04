@@ -86,7 +86,14 @@ export function mountSiteMap(root: HTMLElement, model: MapModel, opts: MountOpti
     btn.setAttribute("aria-pressed", "true");
     btn.disabled = item.markers === 0;
     btn.title = `${item.label}：共 ${item.capped ? "不少于 " : ""}${item.count} 处，地图标出最近的 ${item.markers} 处`;
-    btn.append(el("span", "viz-badge", item.glyph), document.createTextNode(`${item.label} ${item.markers === item.count ? item.markers : `${item.markers} / ${item.capped ? "≥" : ""}${item.count}`}`));
+    const nums = item.markers === item.count ? String(item.markers) : `${item.markers} / ${item.capped ? "≥" : ""}${item.count}`;
+    // 宽屏显示完整名称，窄屏显示短名（由 CSS 切换）；读屏与悬停提示始终用完整说明
+    btn.setAttribute("aria-label", btn.title);
+    btn.append(
+      el("span", "viz-badge", item.glyph),
+      el("span", "viz-lg-full", `${item.label} ${nums}`),
+      el("span", "viz-lg-short", `${item.short} ${nums.replace(/ /g, "")}`),
+    );
     (btn.firstChild as HTMLElement).setAttribute("aria-hidden", "true");
     btn.addEventListener("click", () => {
       const nowHidden = !hidden.has(item.key);

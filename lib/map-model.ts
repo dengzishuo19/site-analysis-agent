@@ -45,6 +45,7 @@ export type LegendItem = {
   glyph: string;
   family: FamilyKey;
   familyLabel: string;
+  short: string; // 窄屏图例用的短名
   markers: number; // 地图上实际标出的设施数
   count: number; // 高德返回的该类总数
   capped: boolean;
@@ -90,6 +91,7 @@ export function buildMapModel(stats: MapStats): MapModel {
       key: cat.key,
       label: cat.label,
       glyph: style.glyph,
+      short: style.short,
       family: style.family,
       familyLabel: FAMILIES[style.family].label,
       markers: placed,

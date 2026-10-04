@@ -108,7 +108,8 @@
 .viz-legend{list-style:none;margin:0 0 8px;padding:0;display:flex;flex-wrap:wrap;gap:6px}
 .viz-legend button{display:inline-flex;align-items:center;gap:6px;padding:3px 10px 3px 3px;border:1px solid var(--viz-grid);border-radius:999px;background:transparent;color:var(--viz-ink-2);font:inherit;font-size:13px;cursor:pointer}
 .viz-legend button[aria-pressed="false"]{opacity:.5;text-decoration:line-through}
-@media (max-width:640px){.viz-legend button{min-height:44px;padding-right:14px}.viz-row{grid-template-columns:22px minmax(64px,120px) 1fr auto}}
+.viz-lg-short{display:none}
+@media (max-width:640px){.viz-legend{gap:6px 4px}.viz-legend button{min-height:44px;gap:4px;padding:2px 9px 2px 3px;font-size:12px}.viz-legend .viz-badge{width:20px;height:20px;font-size:11px}.viz-lg-full{display:none}.viz-lg-short{display:inline}.viz-row{grid-template-columns:22px minmax(64px,120px) 1fr auto}}
 .viz-legend button:disabled{opacity:.35;cursor:not-allowed;text-decoration:none}
 .viz-legend button:focus-visible{outline:2px solid var(--viz-ink);outline-offset:2px}
 .viz-map-box{position:relative;height:420px;border:1px solid var(--viz-grid);border-radius:10px;overflow:hidden;background:var(--viz-grid)}
@@ -264,7 +265,7 @@
 
                                     
                                                                       
-                                                                 
+                                                                                 // short：窄屏图例用的短名
 
 // 图表表面色
 const SURFACE                       = { light: "#fcfcfb", dark: "#1a1a19" };
@@ -290,13 +291,13 @@ const FAMILY_ORDER              = ["transit", "services", "green", "industry"];
 
 // 类别（与 lib/stats.ts 的 key 对应）所属的类型族与单字标记
 const CATEGORIES                                = {
-  metro: { family: "transit", glyph: "地" },
-  bus: { family: "transit", glyph: "公" },
-  school: { family: "services", glyph: "教" },
-  hospital: { family: "services", glyph: "医" },
-  commerce: { family: "services", glyph: "商" },
-  park: { family: "green", glyph: "园" },
-  industry: { family: "industry", glyph: "工" },
+  metro: { family: "transit", glyph: "地", short: "地铁口" },
+  bus: { family: "transit", glyph: "公", short: "公交" },
+  school: { family: "services", glyph: "教", short: "教育" },
+  hospital: { family: "services", glyph: "医", short: "医疗" },
+  commerce: { family: "services", glyph: "商", short: "商业" },
+  park: { family: "green", glyph: "园", short: "公园" },
+  industry: { family: "industry", glyph: "工", short: "工业" },
 };
 
 // 单个色彩通道的线性化值
@@ -400,6 +401,7 @@ function paletteCss()         {
                 
                     
                       
+                            
                                  
                              
                   
@@ -445,6 +447,7 @@ function buildMapModel(stats          )           {
       key: cat.key,
       label: cat.label,
       glyph: style.glyph,
+      short: style.short,
       family: style.family,
       familyLabel: FAMILIES[style.family].label,
       markers: placed,
@@ -719,7 +722,14 @@ function mountSiteMap(root             , model          , opts              )   
     btn.setAttribute("aria-pressed", "true");
     btn.disabled = item.markers === 0;
     btn.title = `${item.label}：共 ${item.capped ? "不少于 " : ""}${item.count} 处，地图标出最近的 ${item.markers} 处`;
-    btn.append(el("span", "viz-badge", item.glyph), document.createTextNode(`${item.label} ${item.markers === item.count ? item.markers : `${item.markers} / ${item.capped ? "≥" : ""}${item.count}`}`));
+    const nums = item.markers === item.count ? String(item.markers) : `${item.markers} / ${item.capped ? "≥" : ""}${item.count}`;
+    // 宽屏显示完整名称，窄屏显示短名（由 CSS 切换）；读屏与悬停提示始终用完整说明
+    btn.setAttribute("aria-label", btn.title);
+    btn.append(
+      el("span", "viz-badge", item.glyph),
+      el("span", "viz-lg-full", `${item.label} ${nums}`),
+      el("span", "viz-lg-short", `${item.short} ${nums.replace(/ /g, "")}`),
+    );
     (btn.firstChild               ).setAttribute("aria-hidden", "true");
     btn.addEventListener("click", () => {
       const nowHidden = !hidden.has(item.key);

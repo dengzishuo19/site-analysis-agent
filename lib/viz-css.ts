@@ -27,7 +27,8 @@ const componentCss = `
 .viz-legend{list-style:none;margin:0 0 8px;padding:0;display:flex;flex-wrap:wrap;gap:6px}
 .viz-legend button{display:inline-flex;align-items:center;gap:6px;padding:3px 10px 3px 3px;border:1px solid var(--viz-grid);border-radius:999px;background:transparent;color:var(--viz-ink-2);font:inherit;font-size:13px;cursor:pointer}
 .viz-legend button[aria-pressed="false"]{opacity:.5;text-decoration:line-through}
-@media (max-width:640px){.viz-legend button{min-height:44px;padding-right:14px}.viz-row{grid-template-columns:22px minmax(64px,120px) 1fr auto}}
+.viz-lg-short{display:none}
+@media (max-width:640px){.viz-legend{gap:6px 4px}.viz-legend button{min-height:44px;gap:4px;padding:2px 9px 2px 3px;font-size:12px}.viz-legend .viz-badge{width:20px;height:20px;font-size:11px}.viz-lg-full{display:none}.viz-lg-short{display:inline}.viz-row{grid-template-columns:22px minmax(64px,120px) 1fr auto}}
 .viz-legend button:disabled{opacity:.35;cursor:not-allowed;text-decoration:none}
 .viz-legend button:focus-visible{outline:2px solid var(--viz-ink);outline-offset:2px}
 .viz-map-box{position:relative;height:420px;border:1px solid var(--viz-grid);border-radius:10px;overflow:hidden;background:var(--viz-grid)}
